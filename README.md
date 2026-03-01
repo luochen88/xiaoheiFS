@@ -1,152 +1,152 @@
-﻿# xiaoheiFS (小黑云财务)
+﻿# xiaoheiFS（小黑云财务）
 
-一个自托管财务系统，包含用户端、管理员端、插件机制与探针能力。
+> 一个面向云服务业务的自托管财务与运营系统，包含用户端、管理端、插件扩展和探针能力。
 
-## 0. 特别鸣谢
+![status](https://img.shields.io/badge/status-alpha-orange)
+![go](https://img.shields.io/badge/go-1.25.0-00ADD8?logo=go)
+![vue](https://img.shields.io/badge/vue-3.x-42b883?logo=vue.js)
+![license](https://img.shields.io/badge/license-GPL--3.0-blue)
 
-- duncai （提供支付实名等接口和文档 和部分功能重要设计灵感等）
-- kaqi（进行安全测试 指出0d漏洞并提供修复建议）
-- kingbatsoft（进行安全测试 ，指出数个漏洞）
-- luochen（进行软件测试，和设计建议）
-- xiaohei（进行软件测试，和设计建议，此软件名称灵感来源于他，以纪念其勤劳工作）
-- xmccln（提供app亮色模式设计灵感）
-- Caius（提供实名功能设计灵感 ，提供财务统计和审计功能设计灵感）
-- Pika（OpenIDC系统开发，并提供自动化插件接入支持）
-- danvei233（不入流の开发者，本项目维护者）
+## 为什么是 xiaoheiFS
 
-（排名不分先后）
+- 一体化：用户下单、订单管理、VPS 生命周期、审计运维在同一套系统内完成
+- 可扩展：支付、短信、实名、自动化等能力通过插件接入
+- 可落地：提供 Web 前后端、Flutter 客户端、独立探针与 CI 构建流程
 
-## 1. 开发阶段
+## 当前状态
 
-- 当前阶段：`Alpha`（功能设计末期）
-- 现状：核心功能链路可跑通，系统安全，稳定。
-- 建议：仅用于测试、内测或低风险试运行环境。
+- 阶段：`Alpha`
+- 现状：核心链路（注册/登录、商品、下单、后台管理）可跑通
+- 建议：适合测试、灰度与低风险试运行环境
 
-## 2. 系统功能（当前可用）
+## 功能概览
 
-### 2.1 用户侧
-- 注册、登录、找回密码（基础实现）
+### 用户端
+
+- 注册、登录、找回密码
 - 商品浏览、购物车、下单、订单查看
-- VPS 相关管理页（按后端能力启用）
-- 钱包相关页（充值/记录等）
-- 工单与通知相关页面
+- VPS 管理页（按后端能力启用）
+- 钱包、工单、通知相关页面
 
-### 2.2 管理后台
+### 管理端
+
 - 用户与订单管理
-- 套餐、计费周期、商品类型配置
-- 站点与系统参数配置
-- 审计、调试、计划任务等运维页面
-- 插件管理、自动化对接页面
+- 商品类型、套餐、计费周期配置
+- 系统参数、模板、审计日志与运维页面
+- 插件管理与自动化对接
 
-### 2.3 插件能力
-- 基于 `backend/plugins` 目录管理插件内容
-- 支持在后台启用/禁用配置插件
-- 可配合“轻舟自动化插件”完成商品与自动化联动
+### 插件与探针
 
-### 2.4 探针能力
-- 独立项目：`pingbot`
-- 可单独构建与部署
-- 工作流支持多平台产物发布
+- 后端插件目录：`backend/plugins`
+- 可通过后台启用、禁用和配置插件
+- 探针项目：`pingbot`（独立 Go 服务）
 
-## 3. 仓库目录说明（按项目划分）
-- `.github/`：CI/CD 工作流（构建、打包、发布）
-- `frontend/`：Web 前端项目（用户端 + 管理端）
-- `backend/`：Go 后端主服务（API、业务、插件管理）
-- `app/`：Flutter 客户端项目
-  - `app/xiaoheifs_app`：管理端 App
-  - `app/xiaoheifs_userapp`：用户端 App
-- `pingbot/`：探针项目（独立 Go 服务）
-- `script/`：本地与 CI 共用构建脚本
-- `docs/`：部署与运维文档
-- `build/`：本地构建输出目录（ignore）
-- `dist/`：发布打包输出目录（ignore）
-- `tmp/`：临时目录（ignore）
-- `qz-override/`：轻舟相关覆盖资源
-- `automation/`：自动化相关模块/资源
+## 技术栈
 
-## 4. 最小部署方案（你现在就能跑起来）
+- 后端：Go 1.25.0 + Gin + GORM + validator
+- 前端：Vue 3 + Vite + Pinia + Ant Design Vue + ECharts
+- 客户端：Flutter（管理员端/用户端）
+- 数据库：MySQL / PostgreSQL / SQLite（通过 GORM）
+- 插件机制：go-plugin + gRPC + protobuf
 
-### 4.1 准备
-- 一台 Linux/Windows 服务器
-- 一个 MySQL 实例（建议 8.0+）
-- 开放端口 `8080`
+## 仓库结构
 
-### 4.2 安装
-1. 从 Release 下载最新主系统包（示例命名：`xiaohei-<tag>-linux-amd64.tar.gz` 或 `xiaohei-<tag>-windows-amd64.zip`）。
-2. 解压到运行目录，例如 `/opt/xiaohei` 或 `D:\xiaohei`。
-3. 直接启动服务（如需 systemd，可自行托管为系统服务）。
-4. 打开 `http://<IP>:8080/`，系统会跳转安装页。
-5. 填写数据库连接信息并完成安装。
-6. 打开 `http://<IP>:8080/admin/login` 登录管理员后台。
+- `.github/workflows/`：发布与构建流水线
+- `backend/`：后端主服务（API、业务、插件管理）
+- `frontend/`：Web 前端（用户端 + 管理端）
+- `app/`：Flutter 客户端工程
+- `pingbot/`：探针服务
+- `plugins/`：插件相关资源
+- `docs/`：部署与能力文档
+- `script/`：构建脚本
 
-### 4.3 初始化业务配置（最少步骤）
-1. 进入 `基础设置 -> 插件设置`，启用轻舟自动化插件。
-2. 进入商品配置，新增商品类型并执行同步。
-3. 新增套餐。
-4. 添加计费周期。
-5. 用测试账号走一遍下单链路，确认系统可用。
+## 快速开始（本地开发）
 
-### 4.4 验收检查
-- 首页可打开，安装状态正常
-- 后台可登录
-- 商品类型同步成功
-- 套餐和计费周期可正常保存
-- 下单流程无 5xx 错误
+### 前置环境
 
-## 5. 编译教程
+- Go `1.25.0`
+- Node.js `18+`（建议 20+）
+- npm
+- MySQL（推荐）或 SQLite（开发可用）
 
-### 5.1 一键脚本（推荐）
+### 1) 启动后端
+
+```bash
+cd backend
+go run ./cmd/server
+```
+
+说明：后端支持 `app.config.yaml` / `app.config.yml` / `app.config.json` 配置加载（详见 `backend/README.md`）。
+
+### 2) 启动前端
+
+```bash
+cd frontend
+npm i
+npm run dev
+```
+
+默认开发代理：
+- `/api` -> `http://localhost:8080`
+- `/admin/api` -> `http://localhost:8080`
+- `/sdk` -> `http://localhost:8080`
+
+### 3) 完成初始化安装
+
+1. 访问 `http://localhost:8080/` 进入安装页
+2. 填写数据库连接并初始化管理员账号
+3. 访问 `http://localhost:8080/admin/login` 登录后台
+
+## 构建与发布
+
+### 一键构建
 
 Linux:
+
 ```bash
 ./script/build-linux.sh
 ```
-输出：`build/linux/`
 
 Windows:
+
 ```bat
 script\build-win.bat
 ```
-输出：`build/windows/`
 
-### 5.2 手动编译（排障用）
-1. 构建前端
-```bash
-cd frontend
-npm ci
-npm run build
-```
+输出目录：
+- Linux：`build/linux/`
+- Windows：`build/windows/`
 
-2. 构建后端
-```bash
-cd backend
-go build -o ../build/linux/server ./cmd/server
-```
+### CI 工作流
 
-3. 拷贝静态资源
-```bash
-mkdir -p build/linux/static
-cp -a frontend/dist/. build/linux/static/
-```
+- `release-build.yml`：主系统构建与发布
+- `release-pingbot-probe.yml`：探针发布
+- `release-xiaoheifs-app.yml`：管理端 App 发布
+- `release-xiaoheifs-userapp.yml`：用户端 App 发布
 
-### 5.3 发布打包（CI）
-- 触发 `release-build.yml` 后会产出平台包与校验文件。
-- 产物会上传到 Release Assets。
+## 子项目入口
 
-## 6. 文档索引
-- App 部署教程：`docs/app-deploy.md`
-- 探针部署教程：`docs/probe-deploy.md`
-- 自动化系统对接插件开发文档：`docs/automation-plugin-development.md`
+- 后端说明：`backend/README.md`
+- 前端说明：`frontend/README.md`
+- 探针部署：`docs/probe-deploy.md`
+- App 部署：`docs/app-deploy.md`
+- 自动化插件开发：`docs/automation-plugin-development.md`
 
-## 7. 已知问题（Alpha）
-- ~~支付实名插件流程未完整测试。~~
-- ~~注册/登录链路安全性与合规性不足，健壮性需要增强。~~
-- 部分边界场景的异常处理与审计闭环仍需完善。
+## 已知限制
 
-## 8. 近期建议优先级
-1. 完整跑通并补齐~~支付~~实名插件端到端测试。
-2. ~~重构注册登录安全机制（限流、风控、会话策略、合规策略）。~~
-3. 补全关键链路回归测试（~~下单~~、~~支付~~、插件同步、~~退款~~、~~工单~~）。
-4. ~~增加部署自检脚本与健康检查文档。~~
-5. 小黑牛逼！
-6. kaqi~
+- 仍有部分边界场景的异常处理和审计闭环待完善
+- 处于 Alpha 阶段，不建议直接承载高风险生产流量
+
+## 特别鸣谢
+
+- duncai：支付实名接口与关键设计灵感
+- kaqi：安全测试与漏洞修复建议
+- kingbatsoft：安全测试与漏洞反馈
+- luochen：测试与设计建议
+- xiaohei：测试与设计建议，项目命名灵感来源
+- Caius：实名、财务统计与审计能力设计灵感
+- Pika：OpenIDC 系统开发与自动化插件接入支持
+- xmccln：App 亮色模式设计灵感
+- danvei233：项目维护者
+
+排名不分先后。
