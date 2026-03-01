@@ -50,3 +50,36 @@ func TestRegistry_ListAndUpdate(t *testing.T) {
 		t.Fatalf("expected forbidden")
 	}
 }
+
+func TestRegistry_SceneEnabledPersistence(t *testing.T) {
+	_, repo := testutil.NewTestDB(t, false)
+	reg := NewRegistry(repo)
+	ctx := context.Background()
+
+	enabled, err := reg.GetProviderSceneEnabled(ctx, "approval", "order")
+	if err != nil {
+		t.Fatalf("get default provider scene enabled: %v", err)
+	}
+	if !enabled {
+		t.Fatalf("expected scene enabled by default")
+	}
+
+	if err := reg.UpdateProviderSceneEnabled(ctx, "approval", "order", false); err != nil {
+		t.Fatalf("disable provider scene: %v", err)
+	}
+	enabled, err = reg.GetProviderSceneEnabled(ctx, "approval", "order")
+	if err != nil {
+		t.Fatalf("get updated provider scene enabled: %v", err)
+	}
+	if enabled {
+		t.Fatalf("expected order scene disabled after update")
+	}
+
+	enabled, err = reg.GetProviderSceneEnabled(ctx, "approval", "wallet")
+	if err != nil {
+		t.Fatalf("get other scene enabled state: %v", err)
+	}
+	if !enabled {
+		t.Fatalf("expected other scene to remain enabled")
+	}
+}
