@@ -117,6 +117,29 @@ script\build-win.bat
 - Linux：`build/linux/`
 - Windows：`build/windows/`
 
+### Docker 快速启动（后端）
+
+```bash
+# 构建后端镜像（含前端静态资源）
+./docker/build/build-docker-image.sh
+
+# 使用 MySQL 启动（默认）⭐⭐⭐⭐⭐
+docker compose -f docker/docker-compose/docker-compose.mysql.yaml up -d --build
+
+# 使用 PostgreSQL 启动 ⭐⭐⭐
+docker compose -f docker/docker-compose/docker-compose.postgres.yaml up -d --build
+
+# 使用 SQLite 启动（仅开发/测试）⭐
+docker compose -f docker/docker-compose/docker-compose.sqlite.yaml up -d --build
+
+# 查看服务日志
+docker compose -f docker/docker-compose/docker-compose.mysql.yaml logs -f xiaoheifs
+```
+
+说明：SQLite 不建议用于生产环境。
+
+更多说明见：`docker/README.md`
+
 ### CI 工作流
 
 - `release-build.yml`：主系统构建与发布
