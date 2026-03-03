@@ -123,5 +123,4 @@ replace (
 	cloud.google.com/go => cloud.google.com/go v0.110.0
 	cloud.google.com/go/compute/metadata => cloud.google.com/go/compute/metadata v0.9.0
 	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20240604185151-ef581f913117
-	github.com/golang/protobuf => google.golang.org/protobuf v1.36.11
 )
