@@ -6,6 +6,7 @@ import (
 	"time"
 
 	appreport "xiaoheiplay/internal/app/report"
+	"xiaoheiplay/internal/domain"
 )
 
 type revenueAnalyticsQueryDTO struct {
@@ -26,11 +27,11 @@ type revenueAnalyticsQueryDTO struct {
 func (q revenueAnalyticsQueryDTO) toReportQuery() (appreport.RevenueAnalyticsQuery, error) {
 	fromAt, err := parseQueryTime(q.FromAt)
 	if err != nil {
-		return appreport.RevenueAnalyticsQuery{}, fmt.Errorf("invalid from_at")
+		return appreport.RevenueAnalyticsQuery{}, fmt.Errorf("%w: invalid from_at", domain.ErrInvalidInput)
 	}
 	toAt, err := parseQueryTime(q.ToAt)
 	if err != nil {
-		return appreport.RevenueAnalyticsQuery{}, fmt.Errorf("invalid to_at")
+		return appreport.RevenueAnalyticsQuery{}, fmt.Errorf("%w: invalid to_at", domain.ErrInvalidInput)
 	}
 	level := appreport.RevenueAnalyticsLevel(strings.TrimSpace(q.Level))
 	sortField := strings.TrimSpace(q.SortField)
@@ -42,7 +43,7 @@ func (q revenueAnalyticsQueryDTO) toReportQuery() (appreport.RevenueAnalyticsQue
 		sortOrder = "desc"
 	}
 	if sortOrder != "asc" && sortOrder != "desc" {
-		return appreport.RevenueAnalyticsQuery{}, fmt.Errorf("invalid sort_order")
+		return appreport.RevenueAnalyticsQuery{}, fmt.Errorf("%w: invalid sort_order", domain.ErrInvalidInput)
 	}
 	return appreport.RevenueAnalyticsQuery{
 		FromAt:      fromAt,
@@ -63,7 +64,7 @@ func (q revenueAnalyticsQueryDTO) toReportQuery() (appreport.RevenueAnalyticsQue
 func parseQueryTime(raw string) (time.Time, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return time.Time{}, fmt.Errorf("empty")
+		return time.Time{}, domain.ErrInvalidInput
 	}
 	if t, err := time.Parse(time.RFC3339, raw); err == nil {
 		return t, nil
@@ -71,5 +72,5 @@ func parseQueryTime(raw string) (time.Time, error) {
 	if t, err := time.Parse("2006-01-02", raw); err == nil {
 		return t, nil
 	}
-	return time.Time{}, fmt.Errorf("unsupported time format")
+	return time.Time{}, domain.ErrInvalidInput
 }

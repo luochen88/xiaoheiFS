@@ -3,6 +3,7 @@ package payment
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,6 +27,7 @@ import (
 const (
 	settingPaymentEnabled = "payment_providers_enabled"
 	settingPaymentConfig  = "payment_providers_config"
+	settingPaymentScene   = "payment_providers_scene_enabled"
 	settingPaymentPlugins = "payment_plugins"
 )
 
@@ -302,6 +304,45 @@ func (r *Registry) UpdateProviderConfig(ctx context.Context, key string, enabled
 	return r.upsertJSON(ctx, settingPaymentConfig, configMap)
 }
 
+func (r *Registry) GetProviderSceneEnabled(ctx context.Context, key, scene string) (bool, error) {
+	if strings.TrimSpace(key) == "" || strings.TrimSpace(scene) == "" {
+		return false, appshared.ErrInvalidInput
+	}
+	sceneMap, err := r.loadSceneSettings(ctx)
+	if err != nil {
+		return false, err
+	}
+	providerMap, ok := sceneMap[key]
+	if !ok {
+		return true, nil
+	}
+	enabled, ok := providerMap[scene]
+	if !ok {
+		return true, nil
+	}
+	return enabled, nil
+}
+
+func (r *Registry) UpdateProviderSceneEnabled(ctx context.Context, key, scene string, enabled bool) error {
+	if strings.TrimSpace(key) == "" || strings.TrimSpace(scene) == "" {
+		return appshared.ErrInvalidInput
+	}
+	if r.settings == nil {
+		return appshared.ErrInvalidInput
+	}
+	sceneMap, err := r.loadSceneSettings(ctx)
+	if err != nil {
+		return err
+	}
+	providerMap, ok := sceneMap[key]
+	if !ok || providerMap == nil {
+		providerMap = map[string]bool{}
+	}
+	providerMap[scene] = enabled
+	sceneMap[key] = providerMap
+	return r.upsertJSON(ctx, settingPaymentScene, sceneMap)
+}
+
 func (r *Registry) builtins() []providerMeta {
 	return []providerMeta{
 		{
@@ -330,6 +371,30 @@ func (r *Registry) loadSettings(ctx context.Context) (map[string]bool, map[strin
 	enabledMap = loadBoolMap(ctx, r.settings, settingPaymentEnabled)
 	configMap = loadRawMap(ctx, r.settings, settingPaymentConfig)
 	return enabledMap, configMap, nil
+}
+
+func (r *Registry) loadSceneSettings(ctx context.Context) (map[string]map[string]bool, error) {
+	if r.settings == nil {
+		return map[string]map[string]bool{}, nil
+	}
+	setting, err := r.settings.GetSetting(ctx, settingPaymentScene)
+	if err != nil {
+		if errors.Is(err, appshared.ErrNotFound) {
+			return map[string]map[string]bool{}, nil
+		}
+		return map[string]map[string]bool{}, err
+	}
+	if setting.ValueJSON == "" {
+		return map[string]map[string]bool{}, nil
+	}
+	var out map[string]map[string]bool
+	if err := json.Unmarshal([]byte(setting.ValueJSON), &out); err != nil {
+		return map[string]map[string]bool{}, err
+	}
+	if out == nil {
+		return map[string]map[string]bool{}, nil
+	}
+	return out, nil
 }
 
 func (r *Registry) upsertJSON(ctx context.Context, key string, value any) error {

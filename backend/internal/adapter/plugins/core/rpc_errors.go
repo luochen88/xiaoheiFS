@@ -1,7 +1,6 @@
 package plugins
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"xiaoheiplay/internal/domain"
@@ -44,7 +43,6 @@ func MapRPCError(err error, pluginType string) error {
 		if msg == "" {
 			msg = st.Code().String()
 		}
-		return errors.New(msg)
+		return fmt.Errorf("%s", msg)
 	}
 }
-

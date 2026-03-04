@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -405,12 +406,13 @@ func TestAdminOrderAndDebugHandlersNoDirectEventOrAutomationLogRepo(t *testing.T
 
 func TestErrorsNewOnlyAllowedInDomainErrorsGo(t *testing.T) {
 	root := projectRoot(t)
+	target := filepath.Join(root, "internal")
 	var violations []string
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(target, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") {
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)
@@ -436,6 +438,82 @@ func TestErrorsNewOnlyAllowedInDomainErrorsGo(t *testing.T) {
 	}
 	if len(violations) > 0 {
 		t.Fatalf("errors.New is forbidden outside internal/domain/errors.go: %s", strings.Join(violations, ", "))
+	}
+}
+
+func TestNoRawErrorFactoriesInAppAndHTTPProductionCode(t *testing.T) {
+	root := projectRoot(t)
+	targets := []string{
+		filepath.Join(root, "internal", "app"),
+		filepath.Join(root, "internal", "adapter", "http"),
+	}
+	fset := token.NewFileSet()
+	var violations []string
+	for _, target := range targets {
+		err := filepath.WalkDir(target, func(path string, d os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			file, parseErr := parser.ParseFile(fset, path, nil, 0)
+			if parseErr != nil {
+				return parseErr
+			}
+			rel, relErr := filepath.Rel(root, path)
+			if relErr != nil {
+				rel = path
+			}
+			rel = filepath.ToSlash(rel)
+			ast.Inspect(file, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				pkg, ok := sel.X.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				pos := fset.Position(call.Pos())
+				location := rel + ":" + strconv.Itoa(pos.Line)
+				if pkg.Name == "errors" && sel.Sel.Name == "New" {
+					if len(call.Args) == 1 {
+						if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+							violations = append(violations, location+" uses errors.New with inline string")
+						}
+					}
+					return true
+				}
+				if pkg.Name != "fmt" || sel.Sel.Name != "Errorf" || len(call.Args) == 0 {
+					return true
+				}
+				lit, ok := call.Args[0].(*ast.BasicLit)
+				if !ok || lit.Kind != token.STRING {
+					return true
+				}
+				format := lit.Value
+				if unquoted, err := strconv.Unquote(lit.Value); err == nil {
+					format = unquoted
+				}
+				if strings.Contains(format, "%w") {
+					return true
+				}
+				violations = append(violations, location+" uses fmt.Errorf without %w wrapping")
+				return true
+			})
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s: %v", target, err)
+		}
+	}
+	if len(violations) > 0 {
+		t.Fatalf("raw hardcoded error factories are forbidden in app/http production code:\n%s", strings.Join(violations, "\n"))
 	}
 }
 

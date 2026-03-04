@@ -158,7 +158,9 @@ func validateManifestConsistency(jsonM Manifest, grpcM *pluginv1.Manifest) error
 		for _, s := range jsonM.Capabilities.Automation.Features {
 			f, ok := automationFeatureFromString(s)
 			if !ok {
-				return fmt.Errorf("invalid manifest automation feature: %s", s)
+				// Allow forward-compatible string features that are not present in
+				// the current protobuf enum (e.g. ui-only capability tags).
+				continue
 			}
 			want[f] = true
 		}
@@ -166,11 +168,8 @@ func validateManifestConsistency(jsonM Manifest, grpcM *pluginv1.Manifest) error
 		for _, f := range grpcM.Automation.GetFeatures() {
 			got[f] = true
 		}
-		if len(want) != len(got) {
-			return fmt.Errorf("manifest mismatch: automation.features")
-		}
-		for f := range want {
-			if !got[f] {
+		for f := range got {
+			if !want[f] {
 				return fmt.Errorf("manifest mismatch: automation.features")
 			}
 		}
@@ -183,6 +182,9 @@ func validateManifestConsistency(jsonM Manifest, grpcM *pluginv1.Manifest) error
 			if gReasons[k] != v {
 				return fmt.Errorf("manifest mismatch: automation.not_supported_reasons")
 			}
+		}
+		if grpcM.Automation.GetCatalogReadonly() != jsonM.Capabilities.Automation.CatalogReadonly {
+			return fmt.Errorf("manifest mismatch: automation.catalog_readonly")
 		}
 	}
 
