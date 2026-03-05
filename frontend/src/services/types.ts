@@ -19,7 +19,11 @@ export interface PluginManifest {
     sms?: { send?: boolean } | null;
     payment?: { methods?: string[] } | null;
     kyc?: { start?: boolean; query_result?: boolean } | null;
-    automation?: { features?: string[]; not_supported_reasons?: Record<string, string> } | null;
+    automation?: {
+      features?: string[];
+      not_supported_reasons?: Record<string, string>;
+      catalog_readonly?: boolean;
+    } | null;
   };
 }
 
@@ -244,6 +248,16 @@ export interface PackageCapabilities {
   package_refund_enabled?: boolean | null;
 }
 
+export interface GoodsTypeCapabilities {
+  goods_type_id?: number;
+  resize_enabled?: boolean;
+  refund_enabled?: boolean;
+  resize_source?: string;
+  refund_source?: string;
+  goods_type_resize_enabled?: boolean | null;
+  goods_type_refund_enabled?: boolean | null;
+}
+
 export interface SystemImage {
   id?: number;
   line_id?: number;
@@ -381,6 +395,8 @@ export interface PaymentProvider {
   key?: string;
   name?: string;
   enabled?: boolean;
+  order_enabled?: boolean;
+  wallet_enabled?: boolean;
   schema_json?: string;
   config_json?: string;
   balance?: number;
@@ -418,6 +434,10 @@ export interface WalletOrderCreateRequest {
   amount: number;
   currency?: string;
   note?: string;
+  method?: string;
+  return_url?: string;
+  notify_url?: string;
+  extra?: Record<string, string>;
   meta?: Record<string, unknown>;
 }
 

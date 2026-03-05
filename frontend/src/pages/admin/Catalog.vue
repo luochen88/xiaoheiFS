@@ -47,9 +47,9 @@
         <a-card class="card">
           <div class="page-header-actions" style="justify-content: flex-end; margin-bottom: 12px">
             <a-space>
-              <a-tag v-if="isOpenIDCPlugin" color="blue">OpenIDCS 插件：地区由同步生成，只读</a-tag>
-              <a-button danger :disabled="!selectedRegionKeys.length" @click="bulkRemoveRegions">批量删除</a-button>
-              <a-button v-if="!isOpenIDCPlugin" type="primary" @click="openRegion()">新增地区</a-button>
+              <a-tag v-if="isCatalogReadonly" color="blue">当前插件声明目录只读：地区由插件同步，不允许手动增删改</a-tag>
+              <a-button v-if="!isCatalogReadonly" danger :disabled="!selectedRegionKeys.length" @click="bulkRemoveRegions">批量删除</a-button>
+              <a-button v-if="!isCatalogReadonly" type="primary" @click="openRegion()">新增地区</a-button>
             </a-space>
           </div>
           <a-table
@@ -57,7 +57,7 @@
             :data-source="regions"
             row-key="id"
             :pagination="false"
-            :row-selection="regionSelection"
+            :row-selection="isCatalogReadonly ? undefined : regionSelection"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'active'">
@@ -65,8 +65,8 @@
               </template>
               <template v-else-if="column.key === 'action'">
                 <a-space>
-                  <a-button v-if="!isOpenIDCPlugin" size="small" @click="openRegion(record)">编辑</a-button>
-                  <a-button size="small" danger @click="removeRegion(record)">删除</a-button>
+                  <a-button v-if="!isCatalogReadonly" size="small" @click="openRegion(record)">编辑</a-button>
+                  <a-button v-if="!isCatalogReadonly" size="small" danger @click="removeRegion(record)">删除</a-button>
                 </a-space>
               </template>
             </template>
@@ -78,9 +78,9 @@
         <a-card class="card">
           <div class="page-header-actions" style="justify-content: flex-end; margin-bottom: 12px">
             <a-space>
-              <a-tag v-if="isOpenIDCPlugin" color="blue">OpenIDCS 插件：线路由同步生成，只允许启用/禁用</a-tag>
-              <a-button v-if="!isOpenIDCPlugin" danger :disabled="!selectedLineKeys.length" @click="bulkRemoveLines">批量删除</a-button>
-              <a-button v-if="!isOpenIDCPlugin" type="primary" @click="openLine()">新增线路</a-button>
+              <a-tag v-if="isCatalogReadonly" color="blue">当前插件声明目录只读：线路由插件同步，仅允许启用/禁用</a-tag>
+              <a-button v-if="!isCatalogReadonly" danger :disabled="!selectedLineKeys.length" @click="bulkRemoveLines">批量删除</a-button>
+              <a-button v-if="!isCatalogReadonly" type="primary" @click="openLine()">新增线路</a-button>
             </a-space>
           </div>
           <a-table
@@ -88,7 +88,7 @@
             :data-source="lines"
             row-key="id"
             :pagination="false"
-            :row-selection="isOpenIDCPlugin ? undefined : lineSelection"
+            :row-selection="isCatalogReadonly ? undefined : lineSelection"
           >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'region_id'">
@@ -105,15 +105,13 @@
               </template>
               <template v-else-if="column.key === 'action'">
                 <a-space>
-                  <!-- openidc 插件：只允许启用/禁用 -->
-                  <template v-if="isOpenIDCPlugin">
+                  <template v-if="isCatalogReadonly">
                     <a-button
                       size="small"
                       :type="record.active ? 'default' : 'primary'"
                       @click="toggleLineActive(record)"
                     >{{ record.active ? '禁用' : '启用' }}</a-button>
                   </template>
-                  <!-- 普通插件：完整编辑 -->
                   <template v-else>
                     <a-button size="small" @click="openLine(record)">编辑</a-button>
                     <a-button size="small" danger @click="removeLine(record)">删除</a-button>
@@ -281,6 +279,10 @@
             />
           </a-spin>
         </a-card>
+        <a-row :gutter="12">
+          <a-col :span="12"><a-form-item label="允许升降配"><a-switch v-model:checked="goodsTypeForm.resize_enabled" /></a-form-item></a-col>
+          <a-col :span="12"><a-form-item label="允许退款"><a-switch v-model:checked="goodsTypeForm.refund_enabled" /></a-form-item></a-col>
+        </a-row>
         <a-form-item label="启用"><a-switch v-model:checked="goodsTypeForm.active" /></a-form-item>
       </a-form>
     </a-modal>
@@ -386,13 +388,6 @@
           <a-input-number v-model:value="packageForm.capacity_remaining" :min="-1" style="width: 100%" />
           <div class="subtle" style="margin-top: 6px">负数表示不限，0 表示售罄</div>
         </a-form-item>
-        <a-divider style="margin: 12px 0" />
-        <div class="section-title">套餐能力开关</div>
-        <div class="subtle" style="margin-bottom: 8px">用于控制该套餐是否允许用户升降配和申请退款。</div>
-        <a-row :gutter="12">
-          <a-col :span="12"><a-form-item label="允许升降配"><a-switch v-model:checked="packageForm.resize_enabled" /></a-form-item></a-col>
-          <a-col :span="12"><a-form-item label="允许退款"><a-switch v-model:checked="packageForm.refund_enabled" /></a-form-item></a-col>
-        </a-row>
         <a-space>
           <a-button type="primary" @click="submitPackage">保存</a-button>
           <a-button @click="packageOpen = false">取消</a-button>
@@ -468,7 +463,6 @@
           <a-col :span="6"><a-form-item label="启用"><a-switch v-model:checked="batchForm.active" /></a-form-item></a-col>
           <a-col :span="6"><a-form-item label="可见"><a-switch v-model:checked="batchForm.visible" /></a-form-item></a-col>
         </a-row>
-
         <a-divider>资源规则</a-divider>
         <a-row :gutter="12">
           <a-col :span="8"><a-form-item label="CPU 最小"><a-input-number v-model:value="batchForm.cpu_min" :min="1" style="width: 100%" /></a-form-item></a-col>
@@ -548,8 +542,6 @@ import {
   listPackages,
   createPackage,
   updatePackage,
-  getPackageCapabilities,
-  updatePackageCapabilities,
   deletePackage,
   bulkDeletePackages,
   listSystemImages,
@@ -567,6 +559,8 @@ import {
   listGoodsTypes,
   syncGoodsTypeAutomation,
   getGoodsTypeAutomationOptions,
+  getGoodsTypeCapabilities,
+  updateGoodsTypeCapabilities,
   createGoodsType,
   updateGoodsType,
   deleteGoodsType,
@@ -584,6 +578,7 @@ const systemImages = ref([]);
 const billingCycles = ref([]);
 
 const goodsTypes = ref<any[]>([]);
+const automationPlugins = ref<any[]>([]);
 const goodsTypeId = ref<any>(null);
 const goodsTypeOptions = computed(() =>
   (goodsTypes.value || [])
@@ -597,13 +592,27 @@ const goodsTypeOptions = computed(() =>
     .map((gt) => ({ label: gt.name, value: gt.id }))
 );
 
-// 判断当前选中商品类型是否为 openidc 插件（地区/线路只读）
-const isOpenIDCPlugin = computed(() => {
-  if (!goodsTypeId.value) return false;
-  const gt = goodsTypes.value.find((item) => Number(item.id) === Number(goodsTypeId.value));
-  if (!gt) return false;
-  const pluginId = String(gt.automation_plugin_id || "").toLowerCase();
-  return pluginId === "openidc_default" || pluginId.includes("openidc");
+const toAutomationRef = (pluginID: any, instanceID: any) => {
+  const plugin = String(pluginID || "").trim();
+  const instance = String(instanceID || "default").trim() || "default";
+  if (!plugin) return "";
+  return `${plugin}:${instance}`;
+};
+
+const selectedGoodsType = computed(() => {
+  if (!goodsTypeId.value) return null;
+  return goodsTypes.value.find((item) => Number(item.id) === Number(goodsTypeId.value)) || null;
+});
+
+const isCatalogReadonly = computed(() => {
+  const current = selectedGoodsType.value;
+  if (!current) return false;
+  const targetRef = toAutomationRef(current.automation_plugin_id, current.automation_instance_id);
+  if (!targetRef) return false;
+  const plugin = automationPlugins.value.find(
+    (item) => toAutomationRef(item?.plugin_id, item?.instance_id) === targetRef
+  );
+  return !!plugin?.manifest?.capabilities?.automation?.catalog_readonly;
 });
 
 const goodsTypeColumns = [
@@ -696,7 +705,9 @@ const goodsTypeForm = reactive({
   active: true,
   sort_order: 0,
   automation_plugin_id: "",
-  automation_instance_id: ""
+  automation_instance_id: "",
+  resize_enabled: true,
+  refund_enabled: true
 });
 
 const safeJson = (s: string) => {
@@ -766,9 +777,7 @@ const packageForm = reactive({
   monthly_price: 0,
   active: true,
   visible: true,
-  capacity_remaining: -1,
-  resize_enabled: true,
-  refund_enabled: true
+  capacity_remaining: -1
 });
 const imageForm = reactive({ id: null, image_id: null, name: "", type: "linux", enabled: true });
 const cycleForm = reactive({ id: null, name: "", months: 1, multiplier: 1, min_qty: 1, max_qty: 12, active: true });
@@ -1096,19 +1105,27 @@ const loadAutomationInstances = async () => {
   automationLoading.value = true;
   try {
     const res = await listAdminPlugins();
-    const items = (res.data?.items || []).filter((item: any) => String(item.category || "") === "automation");
+    const items = (res.data?.items || []).filter((item: any) => String(item.category || "") === "automation")
+      .map((item: any) => ({
+        ...item,
+        plugin_id: String(item.plugin_id || "").trim(),
+        instance_id: String(item.instance_id || "default").trim() || "default"
+      }));
+    automationPlugins.value = items;
     automationOptions.value = items.map((item: any) => {
-      const pluginID = String(item.plugin_id || "");
-      const instanceID = String(item.instance_id || "default");
+      const pluginID = String(item.plugin_id || "").trim();
+      const instanceID = String(item.instance_id || "default").trim() || "default";
       const enabled = !!(item.enabled ?? item.Enabled);
       return {
-        value: `${pluginID}:${instanceID}`,
+        value: toAutomationRef(pluginID, instanceID),
         label: `${pluginID}/${instanceID}${enabled ? "（启用）" : "（未启用）"}`
       };
     });
-    if (!selectedAutomationRef.value && automationOptions.value.length > 0) {
-      selectedAutomationRef.value = automationOptions.value[0].value;
-    }
+  } catch {
+    // best-effort: plugin list may fail due to permission or disabled plugins;
+    // catalog page should still load without it (catalog_readonly will default to false).
+    automationPlugins.value = [];
+    automationOptions.value = [];
   } finally {
     automationLoading.value = false;
   }
@@ -1259,9 +1276,31 @@ const syncCurrentGoodsType = async () => {
   await load();
 };
 
-const openGoodsType = (record?: any) => {
-  if (record) Object.assign(goodsTypeForm, record);
-  else Object.assign(goodsTypeForm, { id: null, code: "", name: "", active: true, sort_order: 0, automation_plugin_id: "lightboat", automation_instance_id: "default" });
+const openGoodsType = async (record?: any) => {
+  if (record) {
+    Object.assign(goodsTypeForm, { resize_enabled: true, refund_enabled: true }, record);
+    try {
+      const capRes = await getGoodsTypeCapabilities(record.id);
+      const caps = capRes.data || {};
+      goodsTypeForm.resize_enabled = !!caps.resize_enabled;
+      goodsTypeForm.refund_enabled = !!caps.refund_enabled;
+    } catch {
+      goodsTypeForm.resize_enabled = true;
+      goodsTypeForm.refund_enabled = true;
+    }
+  } else {
+    Object.assign(goodsTypeForm, {
+      id: null,
+      code: "",
+      name: "",
+      active: true,
+      sort_order: 0,
+      automation_plugin_id: "lightboat",
+      automation_instance_id: "default",
+      resize_enabled: true,
+      refund_enabled: true
+    });
+  }
   selectedAutomationRef.value = goodsTypeForm.automation_plugin_id && goodsTypeForm.automation_instance_id
     ? `${goodsTypeForm.automation_plugin_id}:${goodsTypeForm.automation_instance_id}`
     : "";
@@ -1273,11 +1312,23 @@ const openGoodsType = (record?: any) => {
 const submitGoodsType = async () => {
   goodsTypeSaving.value = true;
   try {
-    const payload = { ...goodsTypeForm };
+    const payload = { ...goodsTypeForm } as Record<string, any>;
+    const resizeEnabled = !!goodsTypeForm.resize_enabled;
+    const refundEnabled = !!goodsTypeForm.refund_enabled;
+    delete payload.resize_enabled;
+    delete payload.refund_enabled;
+    let currentGoodsTypeID = Number(payload.id || 0);
     if (payload.id) {
       await updateGoodsType(payload.id, payload);
     } else {
-      await createGoodsType(payload);
+      const res = await createGoodsType(payload);
+      currentGoodsTypeID = Number(res?.data?.id || res?.data?.ID || 0);
+    }
+    if (currentGoodsTypeID > 0) {
+      await updateGoodsTypeCapabilities(currentGoodsTypeID, {
+        resize_enabled: resizeEnabled,
+        refund_enabled: refundEnabled
+      });
     }
     if (automationConfigSchema.value && payload.automation_plugin_id && payload.automation_instance_id) {
       await updateAdminPluginInstanceConfig(
@@ -1444,7 +1495,7 @@ const submitLine = async () => {
   load();
 };
 
-// openidc 插件专用：切换线路启用/禁用状态
+// 目录只读插件：仅允许切换线路启用/禁用状态
 const toggleLineActive = async (record) => {
   const newActive = !record.active;
   await updateLine(record.id, { active: newActive });
@@ -1483,17 +1534,6 @@ const openPackage = async (record) => {
       packageForm.plan_group_id = packageLineId.value;
     }
   }
-  if (record?.id) {
-    try {
-      const res = await getPackageCapabilities(record.id);
-      const caps = res.data || {};
-      packageForm.resize_enabled = !!caps.resize_enabled;
-      packageForm.refund_enabled = !!caps.refund_enabled;
-    } catch {
-      packageForm.resize_enabled = true;
-      packageForm.refund_enabled = true;
-    }
-  }
   packageOpen.value = true;
 };
 
@@ -1511,24 +1551,14 @@ const resetPackage = () =>
     monthly_price: 0,
     active: true,
     visible: true,
-    capacity_remaining: -1,
-    resize_enabled: true,
-    refund_enabled: true
+    capacity_remaining: -1
   });
 
 const submitPackage = async () => {
-  let packageID = Number(packageForm.id || 0);
   if (packageForm.id) {
     await updatePackage(packageForm.id, packageForm);
   } else {
-    const res = await createPackage(packageForm);
-    packageID = Number(res.data?.id || 0);
-  }
-  if (packageID > 0) {
-    await updatePackageCapabilities(packageID, {
-      resize_enabled: !!packageForm.resize_enabled,
-      refund_enabled: !!packageForm.refund_enabled
-    });
+    await createPackage(packageForm);
   }
   message.success("已保存套餐");
   packageOpen.value = false;
@@ -1865,6 +1895,8 @@ const bulkRemoveCycles = () => {
 };
 
 onMounted(async () => {
+  // loadAutomationInstances is best-effort: don't block catalog if plugin API fails
+  loadAutomationInstances();
   await loadGoodsTypeList();
   await load();
 });
