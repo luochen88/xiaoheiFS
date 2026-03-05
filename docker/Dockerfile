@@ -30,6 +30,7 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -38,16 +39,12 @@ WORKDIR /app
 COPY --from=frontend-builder /app/frontend/dist ./static
 
 # Copy backend binary
-COPY --from=backend-builder /app/server .
+COPY --from=backend-builder /app/backend/server .
 
-# Copy project configuration and data directories
-COPY --chown=nobody:nogroup uploads ./uploads
-COPY --chown=nobody:nogroup config ./config
-COPY --chown=nobody:nogroup data ./data
-COPY --chown=nobody:nogroup plugin ./plugin
-COPY installlock ./installlock 2>/dev/null || true
+# Copy runtime plugin directory from backend
+COPY --chown=nobody:nogroup backend/plugin ./plugin
 
-# Create necessary directories if they don't exist
+# Create necessary directories
 RUN mkdir -p uploads config data plugin && chmod 755 uploads config data plugin
 
 EXPOSE 8080
