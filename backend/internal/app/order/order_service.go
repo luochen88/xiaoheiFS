@@ -1328,7 +1328,7 @@ func (s *OrderService) provisionItem(ctx context.Context, order domain.Order, it
 	}
 	if hostID == 0 {
 		s.logAutomation(ctx, order.ID, item.ID, "create_host", req, res.Raw, false, "host id not found")
-		return domain.VPSInstance{}, fmt.Errorf("host id not found")
+		return domain.VPSInstance{}, domain.ErrHostIDNotFound
 	}
 	info, err := s.waitHostActive(ctx, cli, hostID, 5, 6*time.Second)
 	if err != nil {

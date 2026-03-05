@@ -688,7 +688,7 @@ func (h *Handler) sendSecurityMessage(c *gin.Context, channels []string, templat
 			}
 			subject, body, ok := h.renderEmailTemplateByName(c, templateName, vars)
 			if !ok {
-				lastErr = fmt.Errorf("email template %s not configured", templateName)
+				lastErr = fmt.Errorf("%w: email template %s not configured", domain.ErrTemplateNotFound, templateName)
 				continue
 			}
 			if h.emailSender == nil {
@@ -726,7 +726,7 @@ func (h *Handler) sendSecurityMessage(c *gin.Context, channels []string, templat
 			}
 			content, ok := h.renderSMSTemplateByName(c, templateName, m)
 			if !ok {
-				lastErr = fmt.Errorf("sms template %s not configured", templateName)
+				lastErr = fmt.Errorf("%w: sms template %s not configured", domain.ErrTemplateNotFound, templateName)
 				continue
 			}
 			msgVars := map[string]string{}

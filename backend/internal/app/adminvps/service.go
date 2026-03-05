@@ -113,7 +113,7 @@ func (s *Service) Create(ctx context.Context, adminID int64, input AdminVPSCreat
 			}
 		}
 		if hostID == 0 {
-			return domain.VPSInstance{}, fmt.Errorf("host id not found")
+			return domain.VPSInstance{}, domain.ErrHostIDNotFound
 		}
 		input.AutomationInstanceID = fmt.Sprintf("%d", hostID)
 		input.Status = domain.VPSStatusUnknown

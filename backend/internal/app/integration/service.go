@@ -79,7 +79,7 @@ func (s *Service) SyncAutomationImagesForLine(ctx context.Context, lineID int64,
 		}
 	}
 	if goodsTypeID <= 0 {
-		return 0, fmt.Errorf("line_id %d not bound to any goods type", lineID)
+		return 0, fmt.Errorf("%w: line_id=%d", domain.ErrLineIdNotBoundToAnyGoodsType, lineID)
 	}
 	cli, err := s.automation.ClientForGoodsType(ctx, goodsTypeID)
 	if err != nil {

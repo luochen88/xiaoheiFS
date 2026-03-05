@@ -3,7 +3,6 @@ package report
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -430,35 +429,35 @@ func (p paymentSlice) dimLineID() int64   { return p.line }
 
 func (s *Service) normalizeRevenueQuery(q RevenueAnalyticsQuery) (RevenueAnalyticsQuery, error) {
 	if q.FromAt.IsZero() || q.ToAt.IsZero() {
-		return q, errors.New("from_at and to_at are required")
+		return q, domain.ErrFromAtAndToAtRequired
 	}
 	if !q.FromAt.Before(q.ToAt) {
-		return q, errors.New("from_at must be before to_at")
+		return q, domain.ErrFromAtMustBeBeforeToAt
 	}
 	if q.ToAt.Sub(q.FromAt) > 366*24*time.Hour {
-		return q, errors.New("time range exceeds limit")
+		return q, domain.ErrTimeRangeExceedsLimit
 	}
 	switch q.Level {
 	case RevenueLevelOverall:
 		// overall allows querying without hierarchy filters
 	case RevenueLevelGoodsType:
 		if q.GoodsTypeID <= 0 {
-			return q, errors.New("goods_type_id is required")
+			return q, domain.ErrGoodsTypeIdRequired
 		}
 	case RevenueLevelRegion:
 		if q.GoodsTypeID <= 0 || q.RegionID <= 0 {
-			return q, errors.New("goods_type_id and region_id are required")
+			return q, domain.ErrGoodsTypeAndRegionIdRequired
 		}
 	case RevenueLevelLine:
 		if q.GoodsTypeID <= 0 || q.RegionID <= 0 || q.LineID <= 0 {
-			return q, errors.New("goods_type_id, region_id and line_id are required")
+			return q, domain.ErrGoodsTypeRegionAndLineIdRequired
 		}
 	case RevenueLevelPackage:
 		if q.GoodsTypeID <= 0 || q.RegionID <= 0 || q.LineID <= 0 || q.PackageID <= 0 {
-			return q, errors.New("all hierarchy ids are required")
+			return q, domain.ErrAllHierarchyIdsRequired
 		}
 	default:
-		return q, errors.New("invalid level")
+		return q, domain.ErrInvalidLevel
 	}
 	if q.SortField == "" {
 		q.SortField = "paid_at"

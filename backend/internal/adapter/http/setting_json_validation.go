@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"xiaoheiplay/internal/domain"
 )
 
 func validateSettingJSONValue(key, value string) error {
@@ -15,20 +16,20 @@ func validateSettingJSONValue(key, value string) error {
 		return nil
 	}
 	if isDoubleEncodedContainerJSON(raw) {
-		return fmt.Errorf("setting %s contains double-encoded json", key)
+		return fmt.Errorf("%w: setting %s contains double-encoded json", domain.ErrInvalidInput, key)
 	}
 	if !json.Valid([]byte(raw)) {
-		return fmt.Errorf("setting %s expects valid json", key)
+		return fmt.Errorf("%w: setting %s expects valid json", domain.ErrInvalidInput, key)
 	}
 	var decoded any
 	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		return fmt.Errorf("setting %s expects valid json", key)
+		return fmt.Errorf("%w: setting %s expects valid json", domain.ErrInvalidInput, key)
 	}
 	switch decoded.(type) {
 	case map[string]any, []any:
 		return nil
 	default:
-		return fmt.Errorf("setting %s expects json object/array", key)
+		return fmt.Errorf("%w: setting %s expects json object/array", domain.ErrInvalidInput, key)
 	}
 }
 
