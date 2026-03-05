@@ -139,11 +139,11 @@ docker compose -f docker/docker-compose.yml logs -f xiaohei-debian
 
 ### CI 工作流
 
-- `docker-build.yml`：构建 Debian/Alpine Docker 镜像；在 `main`/`develop` 相关变更时触发，非 PR 场景推送到 Docker Hub
-- `release-build.yml`：构建主系统 Linux/Windows 发布包（含内置插件）并上传到 GitHub Release
-- `release-pingbot-probe.yml`：构建 pingbot 探针多平台包（linux amd64/arm64、windows amd64）并上传到 GitHub Release
-- `release-xiaoheifs-app.yml`：构建管理端 Flutter App（Android APK、Windows 包）并在 release 事件上传资产
-- `release-xiaoheifs-userapp.yml`：构建用户端 Flutter App（Android APK、Windows 包）并在 release 事件上传资产
+- `docker-build.yml`：构建并推送Docker镜像到 Docker Hub
+-  ` release-build.yml` ：主系统构建与发布
+-  ` release-pingbot-probe.yml` ：亮点发布
+-  ` release-xiaoheifs-app.yml` ：管理端应用发布
+-  ` release-xiaoheifs-userapp.yml` ：用户端应用发布
 
 ## 子项目入口
 
