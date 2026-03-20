@@ -39,15 +39,10 @@
 </template>
 
 <script setup lang="ts">
-  defineOptions({ name: 'SystemsImageDialog' })
+  import { useSystemImageDialogBinding } from '@/components/business/system-image-dialog/model'
+  import type { SystemImageDialogFormValue } from '@/components/business/system-image-dialog/model'
 
-  interface SystemImageDialogFormValue {
-    id: number | null
-    image_id: number | null
-    name: string
-    type: string
-    enabled: boolean
-  }
+  defineOptions({ name: 'SystemsImageDialog' })
 
   interface Props {
     visible: boolean
@@ -65,34 +60,9 @@
   })
   const emit = defineEmits<Emits>()
 
-  const localForm = reactive<SystemImageDialogFormValue>(createDefaultForm())
-
-  const dialogVisible = computed({
-    get: () => props.visible,
-    set: (value) => emit('update:visible', value)
-  })
-
-  watch(
-    () => [props.visible, props.formData] as const,
-    ([visible]) => {
-      if (!visible) {
-        return
-      }
-
-      Object.assign(localForm, createDefaultForm(), props.formData)
-    },
-    { immediate: true, deep: true }
+  const { localForm, dialogVisible } = useSystemImageDialogBinding(props, (value) =>
+    emit('update:visible', value)
   )
-
-  function createDefaultForm(): SystemImageDialogFormValue {
-    return {
-      id: null,
-      image_id: null,
-      name: '',
-      type: 'linux',
-      enabled: true
-    }
-  }
 </script>
 
 <style scoped lang="scss">

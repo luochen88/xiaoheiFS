@@ -107,6 +107,10 @@
 <script setup lang="ts">
   import type { CatalogPlanGroup, CatalogSystemImage } from '@/api/admin'
   import {
+    createDefaultSystemImageDialogForm
+  } from '@/components/business/system-image-dialog/model'
+  import type { SystemImageDialogFormValue } from '@/components/business/system-image-dialog/model'
+  import {
     bulkDeleteAdminSystemImages,
     createAdminSystemImage,
     deleteAdminSystemImage,
@@ -145,14 +149,6 @@
     line_id: number | null
   }
 
-  interface SystemImageDialogFormValue {
-    id: number | null
-    image_id: number | null
-    name: string
-    type: string
-    enabled: boolean
-  }
-
   const userStore = useUserStore()
   const { info } = storeToRefs(userStore)
 
@@ -171,7 +167,7 @@
   const lineDialogLineId = ref<number | null>(null)
   const lineDialogImageIds = ref<number[]>([])
   const lineImageCountMap = ref<Record<number, number>>({})
-  const dialogForm = ref<SystemImageDialogFormValue>(createDefaultDialogForm())
+  const dialogForm = ref<SystemImageDialogFormValue>(createDefaultSystemImageDialogForm())
 
   const pagination = reactive({
     current: 1,
@@ -276,16 +272,6 @@
     return {
       keyword: '',
       status: undefined
-    }
-  }
-
-  function createDefaultDialogForm(): SystemImageDialogFormValue {
-    return {
-      id: null,
-      image_id: null,
-      name: '',
-      type: 'linux',
-      enabled: true
     }
   }
 
@@ -441,7 +427,7 @@
   }
 
   function openCreateDialog() {
-    dialogForm.value = createDefaultDialogForm()
+    dialogForm.value = createDefaultSystemImageDialogForm()
     dialogVisible.value = true
   }
 

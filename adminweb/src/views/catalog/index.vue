@@ -609,6 +609,12 @@
 <script setup lang="ts">
   import type { AdminPluginRecord, CatalogGoodsType, CatalogSystemImage } from '@/api/admin'
   import {
+    createDefaultSystemImageDialogForm
+  } from '@/components/business/system-image-dialog/model'
+  import type {
+    SystemImageDialogFormValue as SystemImageFormValue
+  } from '@/components/business/system-image-dialog/model'
+  import {
     bulkDeleteAdminBillingCycles,
     bulkDeleteAdminPackages,
     bulkDeleteAdminPlanGroups,
@@ -857,14 +863,6 @@
     instanceId: string
   }
 
-  type SystemImageFormValue = {
-    id: number | null
-    image_id: number | null
-    name: string
-    type: string
-    enabled: boolean
-  }
-
   type BillingCycleFormValue = {
     id: number | null
     name: string
@@ -922,7 +920,7 @@
   const planGroupForm = ref<PlanGroupFormValue>(createDefaultPlanGroupForm())
   const packageForm = ref<PackageFormValue>(createDefaultPackageForm())
   const batchForm = ref<PackageBatchFormValue>(createDefaultBatchForm())
-  const systemImageForm = ref<SystemImageFormValue>(createDefaultSystemImageForm())
+  const systemImageForm = ref<SystemImageFormValue>(createDefaultSystemImageDialogForm())
   const billingCycleForm = ref<BillingCycleFormValue>(createDefaultBillingCycleForm())
   const generatedPackages = ref<GeneratedPackageRow[]>([])
 
@@ -1089,10 +1087,6 @@
       capacity_remaining: -1,
       sort_order: 0
     }
-  }
-
-  function createDefaultSystemImageForm(): SystemImageFormValue {
-    return { id: null, image_id: null, name: '', type: 'linux', enabled: true }
   }
 
   function createDefaultBillingCycleForm(): BillingCycleFormValue {
@@ -1938,7 +1932,7 @@
   }
 
   function openSystemImageDialog(row?: SystemImageRow) {
-    systemImageForm.value = row ? { ...row } : createDefaultSystemImageForm()
+    systemImageForm.value = row ? { ...row } : createDefaultSystemImageDialogForm()
     systemImageDialogVisible.value = true
   }
 
