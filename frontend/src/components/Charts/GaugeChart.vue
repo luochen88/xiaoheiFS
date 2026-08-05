@@ -1,107 +1,64 @@
 <template>
-  <div ref="el" style="width: 100%; height: 200px"></div>
+  <div class="gauge-chart">
+    <ArtRingChart
+      :data="chartData"
+      :colors="chartColors"
+      :center-text="centerText"
+      :show-tooltip="false"
+      height="180px"
+    />
+    <span v-if="title" class="gauge-title">{{ title }}</span>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref, watch } from "vue";
-import { echarts } from "@/lib/echarts";
+  import { getCssVar } from '@/utils/ui'
+  import { useSettingStore } from '@/store/modules/setting'
 
-const props = defineProps<{
-  value: number;
-  title?: string;
-  color?: string;
-  max?: number;
-}>();
+  defineOptions({ name: 'LegacyGaugeChartAdapter' })
 
-const el = ref<HTMLElement | null>(null);
-let chart: any;
+  const props = withDefaults(
+    defineProps<{ value: number; title?: string; color?: string; max?: number | string }>(),
+    { title: '', color: '', max: 100 }
+  )
 
-const getColor = (v: number) => {
-  if (props.color) return props.color;
-  if (v < 50) return "#52c41a";
-  if (v < 80) return "#faad14";
-  return "#f5222d";
-};
-
-const render = () => {
-  if (!el.value) return;
-  chart = chart || echarts.init(el.value);
-  const val = Number(props.value) || 0;
-  chart.setOption({
-    series: [
-      {
-        type: "gauge",
-        startAngle: 200,
-        endAngle: -20,
-        min: 0,
-        max: props.max || 100,
-        splitNumber: 5,
-        itemStyle: {
-          color: getColor(val)
-        },
-        progress: {
-          show: true,
-          width: 18
-        },
-        pointer: {
-          show: true,
-          width: 5,
-          length: "60%"
-        },
-        axisLine: {
-          lineStyle: {
-            width: 18
-          }
-        },
-        axisTick: {
-          show: false
-        },
-        splitLine: {
-          length: 6,
-          lineStyle: {
-            width: 2,
-            color: "#999"
-          }
-        },
-        axisLabel: {
-          distance: 10,
-          fontSize: 10,
-          color: "#666"
-        },
-        title: {
-          offsetCenter: [0, "30%"],
-          fontSize: 12,
-          color: "#666"
-        },
-        detail: {
-          valueAnimation: true,
-          fontSize: 24,
-          offsetCenter: [0, "-10%"],
-          formatter: "{value}%",
-          color: "#333"
-        },
-        data: [
-          {
-            value: val.toFixed(1),
-            name: props.title || ""
-          }
-        ]
-      }
-    ]
-  });
-};
-
-const resize = () => chart?.resize();
-
-onMounted(() => {
-  render();
-  window.addEventListener("resize", resize);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("resize", resize);
-  chart?.dispose();
-});
-
-watch(() => [props.value, props.title], render, { deep: true });
+  const { isDark } = storeToRefs(useSettingStore())
+  const maximum = computed(() => Math.max(0, Number(props.max) || 100))
+  const normalizedValue = computed(() =>
+    Math.min(maximum.value, Math.max(0, Number(props.value) || 0))
+  )
+  const percentage = computed(() =>
+    maximum.value > 0 ? (normalizedValue.value / maximum.value) * 100 : 0
+  )
+  const centerText = computed(() => `${percentage.value.toFixed(1)}%`)
+  const progressColor = computed(() => {
+    if (props.color) return props.color
+    if (percentage.value < 50) return getCssVar('--el-color-success')
+    if (percentage.value < 80) return getCssVar('--el-color-warning')
+    return getCssVar('--el-color-danger')
+  })
+  const chartColors = computed(() => {
+    void isDark.value
+    return [progressColor.value, getCssVar('--art-gray-300')]
+  })
+  const chartData = computed(() => [
+    { name: '已用', value: normalizedValue.value },
+    { name: '可用', value: Math.max(0, maximum.value - normalizedValue.value) }
+  ])
 </script>
+
+<style lang="scss" scoped>
+  .gauge-chart {
+    position: relative;
+  }
+
+  .gauge-title {
+    position: absolute;
+    right: 0;
+    bottom: 14px;
+    left: 0;
+    font-size: 12px;
+    color: var(--art-gray-600);
+    text-align: center;
+  }
+</style>

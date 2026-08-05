@@ -1,46 +1,19 @@
-﻿<template>
-  <div ref="el" style="height: 260px"></div>
+<template>
+  <ArtBarChart :data="values" :x-axis-data="labels" height="260px" />
 </template>
 
-<script setup>
-import { onMounted, onBeforeUnmount, ref, watch } from "vue";
-import { echarts } from "@/lib/echarts";
+<script setup lang="ts">
+  defineOptions({ name: 'LegacyBarChartAdapter' })
 
-const props = defineProps({
-  data: { type: Object, default: () => ({ labels: [], values: [] }) }
-});
+  interface LegacyBarData {
+    labels?: Array<string | number>
+    values?: number[]
+  }
 
-const el = ref(null);
-let chart;
+  const props = withDefaults(defineProps<{ data?: LegacyBarData }>(), {
+    data: () => ({ labels: [], values: [] })
+  })
 
-const render = () => {
-  if (!el.value) return;
-  chart = chart || echarts.init(el.value);
-  chart.setOption({
-    grid: { left: 30, right: 20, top: 20, bottom: 30 },
-    xAxis: { type: "category", data: props.data.labels || [] },
-    yAxis: { type: "value" },
-    series: [
-      {
-        type: "bar",
-        data: props.data.values || [],
-        itemStyle: { color: "#1677ff" }
-      }
-    ]
-  });
-};
-
-const resize = () => chart?.resize();
-
-onMounted(() => {
-  render();
-  window.addEventListener("resize", resize);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("resize", resize);
-  chart?.dispose();
-});
-
-watch(() => props.data, render, { deep: true });
+  const labels = computed(() => (props.data.labels || []).map(String))
+  const values = computed(() => (props.data.values || []).map((value) => Number(value || 0)))
 </script>

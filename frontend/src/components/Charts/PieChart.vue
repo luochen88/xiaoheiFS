@@ -1,67 +1,56 @@
-﻿<template>
-  <div ref="el" style="width: 100%; height: 260px"></div>
+<template>
+  <div ref="chartRef" class="legacy-pie-chart" />
 </template>
 
-<script setup>
-import { nextTick, onMounted, onBeforeUnmount, ref, watch } from "vue";
-import { echarts } from "@/lib/echarts";
+<script setup lang="ts">
+  import type { EChartsOption } from '@/plugins/echarts'
+  import { useChartComponent, useChartOps } from '@/hooks/core/useChart'
+  import type { PieDataItem } from '@/types/component/chart'
 
-const props = defineProps({
-  data: { type: Array, default: () => [] }
-});
-const emit = defineEmits(["slice-click"]);
+  defineOptions({ name: 'LegacyPieChartAdapter' })
 
-const el = ref(null);
-let chart;
-let resizeObserver;
+  const props = withDefaults(defineProps<{ data?: PieDataItem[] }>(), {
+    data: () => []
+  })
+  const emit = defineEmits<{ (event: 'slice-click', value: PieDataItem | null): void }>()
 
-const render = () => {
-  if (!el.value) return;
-  chart = chart || echarts.init(el.value);
-  chart.off("click");
-  chart.on("click", (params) => {
-    emit("slice-click", params?.data || null);
-  });
-  chart.setOption({
-    tooltip: { trigger: "item" },
-    series: [
-      {
-        type: "pie",
-        radius: ["40%", "70%"],
-        data: props.data || [],
-        label: { formatter: "{b}: {d}%" }
-      }
-    ]
-  });
-};
+  const { chartRef, getChartInstance, getAnimationConfig, getTooltipStyle } = useChartComponent({
+    props: { height: '260px' },
+    checkEmpty: () => !props.data.length || props.data.every((item) => Number(item.value) === 0),
+    watchSources: [() => props.data],
+    generateOptions: (): EChartsOption => ({
+      tooltip: getTooltipStyle('item'),
+      color: useChartOps().colors,
+      series: [
+        {
+          type: 'pie',
+          radius: ['42%', '72%'],
+          data: props.data,
+          label: { formatter: '{b}: {d}%' },
+          ...getAnimationConfig()
+        }
+      ]
+    })
+  })
 
-const resize = () => chart?.resize();
-
-onMounted(() => {
-  nextTick(() => {
-    render();
-    resize();
-  });
-  window.addEventListener("resize", resize);
-  if (el.value && typeof ResizeObserver !== "undefined") {
-    resizeObserver = new ResizeObserver(() => resize());
-    resizeObserver.observe(el.value);
+  const bindClick = () => {
+    const chart = getChartInstance()
+    if (!chart) return
+    chart.off('click')
+    chart.on('click', (params) => emit('slice-click', (params.data as PieDataItem) || null))
   }
-});
 
-onBeforeUnmount(() => {
-  window.removeEventListener("resize", resize);
-  resizeObserver?.disconnect?.();
-  chart?.dispose();
-});
-
-watch(
-  () => props.data,
-  async () => {
-    await nextTick();
-    render();
-    resize();
-  },
-  { deep: true }
-);
+  onMounted(() => nextTick(bindClick))
+  watch(
+    () => props.data,
+    () => nextTick(bindClick),
+    { deep: true }
+  )
 </script>
+
+<style lang="scss" scoped>
+  .legacy-pie-chart {
+    width: 100%;
+    height: 260px;
+  }
+</style>
