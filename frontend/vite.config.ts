@@ -26,6 +26,10 @@ const proxyTo = (target: string) => ({ target, changeOrigin: true })
 export default defineConfig({
   base: '/',
 
+  // 并行改造期间多个 git worktree 共用同一份 node_modules（软链），
+  // 若沿用默认的 node_modules/.vite 会互相踩缓存，这里改成各自仓库内的目录。
+  cacheDir: '.vite-cache',
+
   define: {
     // storage-config.ts 用它做本地存储版本号，版本变化即失效旧缓存
     __APP_VERSION__: JSON.stringify('0.1.0'),

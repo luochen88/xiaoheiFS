@@ -121,3 +121,4 @@ Thumbs.db
 /.gocache/
 /.adp-template/
 /.adp-work/
+/frontend/.vite-cache/
