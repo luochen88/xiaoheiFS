@@ -5,6 +5,19 @@ import { configureNProgress } from '@/utils/router'
 import { setupBeforeEachGuard } from './guards/beforeEach'
 import { setupAfterEachGuard } from './guards/afterEach'
 
+function ensureConsoleEntryHash(): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const normalizedPath = window.location.pathname.replace(/\/+$/, '')
+  if (normalizedPath === '/console' && (!window.location.hash || window.location.hash === '#')) {
+    window.location.hash = '#/console'
+  }
+}
+
+ensureConsoleEntryHash()
+
 // 创建路由实例
 export const router = createRouter({
   history: createWebHashHistory(),

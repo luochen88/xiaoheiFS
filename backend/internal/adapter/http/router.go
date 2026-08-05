@@ -41,6 +41,7 @@ func NewServer(handler *Handler, middleware *Middleware) *Server {
 	// Serve built frontend assets from ./static (Vite/SPA).
 	// - Public site assets are served from ./static.
 	// - Admin SPA assets are served from ./static-admin when the request path matches admin_path.
+	// - The public user console is part of adminweb and is served from ./static-admin at /console.
 	// - Otherwise, for non-API routes, fall back to the matching SPA index.html so routing works.
 	adminPathResolver := func() string {
 		if handler == nil {
@@ -230,6 +231,12 @@ func spaIndexFallbackHandler(
 				return
 			}
 		}
+		if dirExists(adminStaticDir) {
+			if redirectTarget := buildUserConsoleSPARedirectTarget(reqPath, c.Request.URL.RawQuery); redirectTarget != "" {
+				c.Redirect(http.StatusTemporaryRedirect, redirectTarget)
+				return
+			}
+		}
 
 		selectedDir, _ := resolveSPATarget(reqPath, publicStaticDir, adminStaticDir, adminPathResolver)
 		indexPath := filepath.Join(selectedDir, "index.html")
@@ -253,6 +260,10 @@ func resolveSPATarget(
 		return adminStaticDir, trimInstallerSPAPrefix(reqPath)
 	}
 
+	if isUserConsoleSPAPrefix(reqPath) && dirExists(adminStaticDir) {
+		return adminStaticDir, trimUserConsoleSPAPrefix(reqPath)
+	}
+
 	adminPath := ""
 	if adminPathResolver != nil {
 		adminPath = normalizeAdminRequestPath(adminPathResolver())
@@ -274,6 +285,15 @@ func isInstallerSPAPrefix(reqPath string) bool {
 
 func trimInstallerSPAPrefix(reqPath string) string {
 	rel := strings.TrimPrefix(reqPath, "/install")
+	return strings.TrimPrefix(rel, "/")
+}
+
+func isUserConsoleSPAPrefix(reqPath string) bool {
+	return reqPath == "/console" || strings.HasPrefix(reqPath, "/console/")
+}
+
+func trimUserConsoleSPAPrefix(reqPath string) string {
+	rel := strings.TrimPrefix(reqPath, "/console")
 	return strings.TrimPrefix(rel, "/")
 }
 
@@ -314,6 +334,27 @@ func buildAdminSPARedirectTarget(reqPath string, adminPath string, rawQuery stri
 	}
 
 	target := adminPrefix + "/#" + rel
+	if rawQuery != "" {
+		target += "?" + rawQuery
+	}
+	return target
+}
+
+func buildUserConsoleSPARedirectTarget(reqPath string, rawQuery string) string {
+	const consolePrefix = "/console"
+	switch {
+	case reqPath == consolePrefix:
+		return appendQuery(consolePrefix+"/#/console", rawQuery)
+	case !strings.HasPrefix(reqPath, consolePrefix+"/"):
+		return ""
+	}
+
+	rel := strings.TrimPrefix(reqPath, consolePrefix)
+	if rel == "/" || looksLikeStaticAssetPath(rel) {
+		return ""
+	}
+
+	target := consolePrefix + "/#/console" + rel
 	if rawQuery != "" {
 		target += "?" + rawQuery
 	}

@@ -56,13 +56,18 @@ func (m *Middleware) RequireUser() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": domain.ErrInvalidToken.Error()})
 			return
 		}
+		role, _ := claims["role"].(string)
+		if role != string(domain.UserRoleUser) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": domain.ErrForbidden.Error()})
+			return
+		}
 		c.Set("user_id", userID)
-		c.Set("role", claims["role"])
+		c.Set("role", role)
 		c.Set("actor_mode", string(domain.RequestActorModeUserJWT))
 		c.Set("request_actor", domain.RequestActor{
 			Mode:   domain.RequestActorModeUserJWT,
 			UserID: userID,
-			Role:   "user",
+			Role:   role,
 		})
 		c.Next()
 	}
@@ -364,8 +369,6 @@ func (m *Middleware) parseToken(c *gin.Context) (jwt.MapClaims, error) {
 	var tokenStr string
 	if strings.HasPrefix(auth, "Bearer ") {
 		tokenStr = strings.TrimPrefix(auth, "Bearer ")
-	} else {
-		tokenStr = m.tokenFromQuery(c)
 	}
 	if tokenStr == "" {
 		return nil, domain.ErrEmptyToken
@@ -400,21 +403,6 @@ func (m *Middleware) parseToken(c *gin.Context) (jwt.MapClaims, error) {
 		}
 	}
 	return claims, nil
-}
-
-func (m *Middleware) tokenFromQuery(c *gin.Context) string {
-	path := c.Request.URL.Path
-	if path == "" {
-		return ""
-	}
-	if !(strings.HasSuffix(path, "/panel") || strings.HasSuffix(path, "/vnc")) {
-		return ""
-	}
-	token := c.Query("token")
-	if token == "" {
-		token = c.Query("access_token")
-	}
-	return token
 }
 
 func extractAPIKey(c *gin.Context) string {

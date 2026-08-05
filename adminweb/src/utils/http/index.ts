@@ -60,6 +60,30 @@ function isWrappedResponse<T>(data: unknown): data is BaseResponse<T> {
 }
 
 const { VITE_API_URL, VITE_WITH_CREDENTIALS } = import.meta.env
+const LEGACY_ADMIN_API_PATHS = new Set([
+  '/api/user/list',
+  '/api/role/list',
+  '/api/v3/system/menus/simple'
+])
+
+function getRequestPath(url: unknown): string {
+  const rawUrl = String(url || '')
+  if (!rawUrl) {
+    return ''
+  }
+
+  try {
+    return new URL(rawUrl, window.location.origin).pathname
+  } catch {
+    const path = rawUrl.split('?')[0].split('#')[0]
+    return path.startsWith('/') ? path : `/${path}`
+  }
+}
+
+function isAdminApiRequest(url: unknown): boolean {
+  const path = getRequestPath(url)
+  return path === '/admin/api' || path.startsWith('/admin/api/') || LEGACY_ADMIN_API_PATHS.has(path)
+}
 
 /** Axios实例 */
 const axiosInstance = axios.create({
@@ -87,7 +111,7 @@ axiosInstance.interceptors.request.use(
   (request: InternalAxiosRequestConfig) => {
     const userStore = useUserStore()
     const accessToken = userStore.accessToken
-    if (accessToken) {
+    if (accessToken && isAdminApiRequest(request.url)) {
       const token = accessToken.startsWith('Bearer ') ? accessToken : `Bearer ${accessToken}`
       request.headers.set('Authorization', token)
     }

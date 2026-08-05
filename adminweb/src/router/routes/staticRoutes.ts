@@ -1,5 +1,6 @@
 import { AppRouteRecordRaw } from '@/utils/router'
 import { legacyAdminRedirectRoutes } from '../legacyAdminRoutes'
+import { consoleRoutes } from '../consoleRoutes'
 
 /**
  * 静态路由配置（不需要权限就能访问的路由）
@@ -43,6 +44,7 @@ export const staticRoutes: AppRouteRecordRaw[] = [
     component: () => import('@views/auth/reset-password/index.vue'),
     meta: { title: 'Reset Password', isHideTab: true }
   },
+  ...consoleRoutes,
   {
     path: '/403',
     name: 'Exception403',

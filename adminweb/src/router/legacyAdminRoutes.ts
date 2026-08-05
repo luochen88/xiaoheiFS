@@ -1,7 +1,6 @@
 import type { AppRouteRecordRaw } from '@/utils/router'
 
 const legacyAdminRedirectMap = [
-  ['/console', '/dashboard/console'],
   ['/revenue-analytics', '/dashboard/revenue-analytics'],
   ['/orders', '/order/review'],
   ['/users', '/system/user'],

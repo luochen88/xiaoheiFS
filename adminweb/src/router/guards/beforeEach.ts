@@ -56,6 +56,7 @@ import { ensureCurrentAdminPath } from '@/utils/adminPath'
 import { useInstallStore } from '@/store/modules/install'
 import { RouteRegistry, MenuProcessor, IframeRouteManager, RoutePermissionValidator } from '../core'
 import type { AppRouteRecord } from '@/types/router'
+import { useConsoleUserStore } from '@/store/modules/console-user'
 
 // 路由注册器实例
 let routeRegistry: RouteRegistry | null = null
@@ -78,6 +79,59 @@ let routeInitInProgress = false
  */
 export function getPendingLoading(): boolean {
   return pendingLoading
+}
+
+async function handleConsoleUserRoute(
+  to: RouteLocationNormalized,
+  next: NavigationGuardNext
+): Promise<boolean> {
+  const isConsoleRoute = to.matched.some(
+    (route) => route.meta?.requiresConsoleUser || route.meta?.publicConsole
+  )
+
+  if (!isConsoleRoute) {
+    return false
+  }
+
+  const consoleUserStore = useConsoleUserStore()
+  const isPublicConsoleRoute = to.matched.some((route) => route.meta?.publicConsole)
+
+  if (isPublicConsoleRoute) {
+    if (consoleUserStore.isLogin && to.path === '/user/login') {
+      next({ path: '/console', replace: true })
+      return true
+    }
+
+    setPageTitle(to)
+    next()
+    return true
+  }
+
+  if (!consoleUserStore.isLogin) {
+    next({
+      name: 'ConsoleUserLogin',
+      query: { redirect: to.fullPath },
+      replace: true
+    })
+    return true
+  }
+
+  if (!consoleUserStore.profile) {
+    try {
+      await consoleUserStore.fetchMe()
+    } catch {
+      next({
+        name: 'ConsoleUserLogin',
+        query: { redirect: to.fullPath },
+        replace: true
+      })
+      return true
+    }
+  }
+
+  setPageTitle(to)
+  next()
+  return true
 }
 
 /**
@@ -159,6 +213,10 @@ async function handleRouteGuard(
   await ensureCurrentAdminPath()
 
   if (!(await handleInstallStatus(to, installStore, next))) {
+    return
+  }
+
+  if (await handleConsoleUserRoute(to, next)) {
     return
   }
 
@@ -328,7 +386,8 @@ function matchKnownRoutePath(
     const routePath = buildKnownRoutePath(route.path || '', parentPath)
     if (
       routePath &&
-      (routePath === targetPath || RoutePermissionValidator.isDynamicRouteMatch(targetPath, routePath))
+      (routePath === targetPath ||
+        RoutePermissionValidator.isDynamicRouteMatch(targetPath, routePath))
     ) {
       return true
     }

@@ -142,6 +142,7 @@
     updateAdminUserStatus,
     updateAdminUserTier
   } from '@/api/admin'
+  import { CONSOLE_USER_TOKEN_KEY } from '@/api/console-user'
   import ArtButtonMore from '@/components/core/forms/art-button-more/index.vue'
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
   import { useTableColumns } from '@/hooks/core/useTableColumns'
@@ -764,9 +765,9 @@
       return
     }
 
-    localStorage.setItem('user_token', token)
+    localStorage.setItem(CONSOLE_USER_TOKEN_KEY, token)
 
-    const consoleUrl = `/console#impersonate_token=${encodeURIComponent(token)}`
+    const consoleUrl = '/console/#/console'
     const popup = window.open(consoleUrl, '_blank', 'noopener')
 
     if (!popup) {

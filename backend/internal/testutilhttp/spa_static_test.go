@@ -194,6 +194,54 @@ func TestSPAServesAdminIndexForConfiguredAdminPath(t *testing.T) {
 
 	{
 		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/console", nil)
+		env.Router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusTemporaryRedirect {
+			t.Fatalf("user console root redirect expected 307, got %d", rec.Code)
+		}
+		if location := rec.Header().Get("Location"); location != "/console/#/console" {
+			t.Fatalf("unexpected user console root redirect: %q", location)
+		}
+	}
+
+	{
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/console/", nil)
+		env.Router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("user console canonical entry expected 200, got %d", rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "ADMIN_INDEX_OK") {
+			t.Fatalf("expected adminweb index body for user console, got: %q", rec.Body.String())
+		}
+	}
+
+	{
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/console/orders/123?id=7", nil)
+		env.Router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusTemporaryRedirect {
+			t.Fatalf("user console history redirect expected 307, got %d", rec.Code)
+		}
+		if location := rec.Header().Get("Location"); location != "/console/#/console/orders/123?id=7" {
+			t.Fatalf("unexpected user console history redirect: %q", location)
+		}
+	}
+
+	{
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/console/assets/admin.txt", nil)
+		env.Router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("user console asset expected 200, got %d", rec.Code)
+		}
+		if strings.TrimSpace(rec.Body.String()) != "ADMIN_ASSET_OK" {
+			t.Fatalf("unexpected user console asset body: %q", rec.Body.String())
+		}
+	}
+
+	{
+		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/Secret123/assets/admin.txt", nil)
 		env.Router.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
