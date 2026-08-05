@@ -7,6 +7,30 @@
 import type { AppRouteRecordRaw } from '@/utils/router'
 
 export const commerceRoutes: AppRouteRecordRaw[] = [
-  // { path: 'buy',  name: 'PublicBuy',  component: () => import('@views/public/buy/index.vue'),  meta: { title: '选购', realm: 'public' } },
-  // { path: 'cart', name: 'PublicCart', component: () => import('@views/public/cart/index.vue'), meta: { title: '购物车', realm: 'public' } },
+  {
+    path: 'buy',
+    name: 'PublicBuy',
+    component: () => import('@views/public/buy/index.vue'),
+    meta: {
+      title: '选购云服务器',
+      icon: 'ri:shopping-bag-3-line',
+      keepAlive: true,
+      realm: 'public',
+      authList: [],
+      isHide: false
+    }
+  },
+  {
+    path: 'cart',
+    name: 'PublicCart',
+    component: () => import('@views/public/cart/index.vue'),
+    meta: {
+      title: '购物车',
+      icon: 'ri:shopping-cart-2-line',
+      keepAlive: true,
+      realm: 'public',
+      authList: [],
+      isHide: false
+    }
+  }
 ]
