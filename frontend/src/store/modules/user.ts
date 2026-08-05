@@ -61,7 +61,9 @@ export const useUserStore = defineStore(
     // 用户信息
     const info = ref<Partial<Api.Auth.UserInfo>>({})
     // 搜索历史记录
-    const searchHistory = ref<AppRouteRecord[]>([])
+    // 同 store/modules/menu.ts：AppRouteRecord 是递归类型，直接用 ref<T[]> 会被
+    // Vue 的 UnwrapRef 深度解包改形，导致消费方报类型不可赋值。
+    const searchHistory = ref([]) as Ref<AppRouteRecord[]>
     // 访问令牌
     const accessToken = ref('')
     // 刷新令牌

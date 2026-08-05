@@ -58,7 +58,7 @@ export const useSiteStore = defineStore("site", {
         const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
         const arr = Array.isArray(parsed) ? parsed : [];
         const normalized: SiteNavItem[] = arr
-          .map((x: any) => ({
+          .map((x: any): SiteNavItem => ({
             label: String(x?.label || "").trim(),
             url: String(x?.url || "").trim(),
             target: (String(x?.target || "_self") as SiteNavItem["target"]) === "_blank" ? "_blank" : "_self",

@@ -289,6 +289,15 @@ export interface CartSpec {
   duration_months?: number;
 }
 
+/**
+ * 后端字段命名兼容
+ *
+ * Go 后端在不同接口上会返回 snake_case / camelCase / PascalCase 三种命名，取决于
+ * 该 handler 是走 DTO 还是直接序列化 GORM model。前端到处是 `row.id ?? row.ID`
+ * 这样的兜底——这是真实契约，**不要"顺手规范化"掉**。
+ *
+ * 下面把代码里实际用到的 PascalCase 别名声明为可选属性，让类型检查反映现实。
+ */
 export interface CartItem {
   id?: number;
   user_id?: number;
@@ -299,6 +308,16 @@ export interface CartItem {
   amount?: number;
   created_at?: string;
   updated_at?: string;
+
+  /** GORM model 直接序列化时的 PascalCase 别名 */
+  ID?: number;
+  PackageID?: number;
+  SystemID?: number;
+  Spec?: CartSpec | string;
+  SpecJSON?: string;
+  spec_json?: string;
+  Qty?: number;
+  Amount?: number;
 }
 
 export interface CartItemRequest {
@@ -325,6 +344,12 @@ export interface Order {
   rejected_reason?: string;
   created_at?: string;
   updated_at?: string;
+
+  /** GORM model 直接序列化时的 PascalCase 别名，见 CartItem 上方的说明 */
+  ID?: number;
+  Status?: string;
+  TotalAmount?: number;
+  CreatedAt?: string;
 }
 
 export interface OrderItem {
@@ -576,6 +601,12 @@ export interface VPSInstance {
   created_at?: string;
   updated_at?: string;
   monthly_price?: number;
+
+  /** GORM model 直接序列化时的 PascalCase 别名，见 CartItem 上方的说明 */
+  ID?: number;
+  Status?: string;
+  ExpireAt?: string;
+  CreatedAt?: string;
 }
 
 export interface MonitorResponse {

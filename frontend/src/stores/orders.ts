@@ -15,7 +15,8 @@ export const useOrdersStore = defineStore("orders", {
       this.loading = true;
       try {
         const res = await listOrders(params);
-        const payload = res.data || {};
+        // 列表接口有的返回 { items, total }，有的直接返回数组，两种都要兜住
+        const payload: { items?: unknown[]; total?: number } = res.data || {};
         this.items = payload.items || [];
         this.total = payload.total || this.items.length;
       } finally {

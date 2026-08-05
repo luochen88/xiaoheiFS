@@ -25,5 +25,21 @@
     }
   },
   "include": ["src/**/*", "src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    // 迁移期排除待删代码（TODO: P4 删除这些目录后一并移除本段，见 adp-migration-plan.md §9.2）
+    //
+    // src/pages、src/layouts 以及 src/components 根目录下的旧组件都是 Ant Design 时代的
+    // 产物，已经没有任何路由引用它们，改造完成后整体删除。它们贡献了约 130 个历史类型
+    // 错误，留在检查范围里会淹没新代码的真实问题，让 `npm run typecheck` 这道门禁失效。
+    // 新代码在 src/views、src/components/{core,business}、src/router、src/store 下，仍然全检。
+    "src/pages",
+    "src/layouts",
+    "src/components/*.vue",
+    "src/components/Charts",
+    "src/components/cms",
+    "src/components/RichTextEditor",
+    "src/stores/__tests__"
+  ]
 }

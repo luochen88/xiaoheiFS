@@ -42,7 +42,11 @@ export const useMenuStore = defineStore('menuStore', () => {
   /** 首页路径 */
   const homePath = ref(HOME_PAGE_PATH)
   /** 菜单列表 */
-  const menuList = ref<AppRouteRecord[]>([])
+  // 用 `as Ref<...>` 而不是 `ref<AppRouteRecord[]>([])`：AppRouteRecord 是递归类型
+  // （children 指向自身）且由 RouteRecordRaw 联合类型 Omit 而来，Vue 的 UnwrapRef
+  // 深度解包会把它改形，导致所有消费 menuList 的组件报"类型不可赋值"。
+  const menuList = ref([]) as Ref<AppRouteRecord[]>
+
   /** 菜单宽度 */
   const menuWidth = ref('')
   /** 存储路由移除函数的数组 */

@@ -110,7 +110,7 @@
 
   const showSearchDialog = ref(false)
   const searchVal = ref('')
-  const searchResult = ref<AppRouteRecord[]>([])
+  const searchResult = ref([]) as Ref<AppRouteRecord[]>
   const historyMaxLength = 10
 
   const { searchHistory: historyResult } = storeToRefs(userStore)

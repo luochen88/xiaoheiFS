@@ -18,14 +18,21 @@
         </RouterLink>
 
         <nav class="public-header__nav">
-          <RouterLink
-            v-for="item in navItems"
-            :key="item.path"
-            :to="item.path"
-            class="public-header__link"
-          >
-            {{ item.title }}
-          </RouterLink>
+          <!-- 导航项来自后台 site_nav_items 设置，可能是站内路径也可能是外链 -->
+          <template v-for="item in navItems" :key="item.url">
+            <a
+              v-if="isExternal(item.url)"
+              class="public-header__link"
+              :href="item.url"
+              :target="item.target || '_self'"
+              rel="noopener"
+            >
+              {{ item.label }}
+            </a>
+            <RouterLink v-else class="public-header__link" :to="item.url">
+              {{ item.label }}
+            </RouterLink>
+          </template>
         </nav>
 
         <div class="public-header__actions">
@@ -85,6 +92,8 @@
   const navItems = computed(() => site.headerNavItems ?? [])
   const cartCount = computed(() => cart.items?.length ?? 0)
   const isLoggedIn = computed(() => Boolean(auth.token))
+
+  const isExternal = (url: string) => /^(https?:)?\/\//.test(url || '')
 
   const toggleTheme = () => {
     setSystemTheme(isDark.value ? SystemThemeEnum.LIGHT : SystemThemeEnum.DARK)

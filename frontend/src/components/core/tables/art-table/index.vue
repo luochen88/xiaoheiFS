@@ -73,7 +73,7 @@
 
 <script setup lang="ts">
   import { ref, computed, nextTick, watchEffect, getCurrentInstance, useAttrs } from 'vue'
-  import type { ElTable, TableProps } from 'element-plus'
+  import type { TableInstance, TableProps } from 'element-plus'
   import { storeToRefs } from 'pinia'
   import { ColumnOption } from '@/types'
   import { useTableStore } from '@/store/modules/table'
@@ -84,7 +84,9 @@
   defineOptions({ name: 'ArtTable' })
 
   const { width } = useWindowSize()
-  const elTableRef = ref<InstanceType<typeof ElTable> | null>(null)
+  // ElTable 是泛型组件，`InstanceType<typeof ElTable>` 不满足构造签名约束，
+  // 用 Element Plus 导出的实例类型。
+  const elTableRef = ref<TableInstance | null>(null)
   const paginationRef = ref<HTMLElement>()
   const tableHeaderRef = ref<HTMLElement>()
   const tableStore = useTableStore()
