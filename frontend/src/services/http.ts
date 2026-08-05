@@ -1,5 +1,5 @@
-﻿import axios from "axios";
-import { message, notification, Modal } from "ant-design-vue";
+﻿import axios, { type AxiosRequestHeaders } from "axios";
+import { ElMessage, ElMessageBox, ElNotification } from "element-plus";
 import { useAuthStore } from "@/stores/auth";
 import { useAdminAuthStore } from "@/stores/adminAuth";
 import { useAppStore } from "@/stores/app";
@@ -24,11 +24,11 @@ http.interceptors.request.use((config) => {
   const admin = useAdminAuthStore();
   const app = useAppStore();
   if (config.url?.startsWith("/api") && user.token) {
-    config.headers = config.headers || {};
+    config.headers = config.headers || ({} as AxiosRequestHeaders);
     config.headers.Authorization = `Bearer ${user.token}`;
   }
   if (config.url?.startsWith("/admin/api") && admin.token) {
-    config.headers = config.headers || {};
+    config.headers = config.headers || ({} as AxiosRequestHeaders);
     config.headers.Authorization = `Bearer ${admin.token}`;
   }
   if (config.headers && "X-Use-Api-Key" in config.headers) {
@@ -74,30 +74,27 @@ http.interceptors.response.use(
           navigateReplace(`/login?redirect=${encodeURIComponent(current)}`);
         }
       }
-      message.error("鉴权失败，请重新登录");
+      ElMessage.error("鉴权失败，请重新登录");
     } else if (status === 403 && url.startsWith("/api") && msg.toLowerCase().includes("real name required")) {
       if (!realnameModalOpen) {
         realnameModalOpen = true;
-        Modal.confirm({
-          title: "需要实名认证",
-          content: "该操作需要完成实名认证，是否前往认证页面？",
-          okText: "去认证",
-          cancelText: "稍后再说",
-          onOk: () => {
+        ElMessageBox.confirm("该操作需要完成实名认证，是否前往认证页面？", "需要实名认证", {
+          confirmButtonText: "去认证",
+          cancelButtonText: "稍后再说",
+          type: "warning"
+        })
+          .then(() => {
             navigateReplace("/console/realname");
-          },
-          onCancel: () => {
+          })
+          .catch(() => {})
+          .finally(() => {
             realnameModalOpen = false;
-          },
-          afterClose: () => {
-            realnameModalOpen = false;
-          }
-        });
+          });
       }
     } else if (status >= 500) {
-      notification.error({ message: "服务端错误", description: msg });
+      ElNotification.error({ title: "服务端错误", message: msg });
     } else {
-      message.error(msg);
+      ElMessage.error(msg);
     }
     return Promise.reject(error);
   }
