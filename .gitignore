@@ -122,3 +122,8 @@ Thumbs.db
 /.adp-template/
 /.adp-work/
 /frontend/.vite-cache/
+/NEEDS.md
+/DONE-W*.md
+/FIXED-W*.md
+/w*-firstpage.md
+/w*-charts.md
