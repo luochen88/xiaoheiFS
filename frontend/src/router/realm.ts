@@ -47,22 +47,33 @@ export function resolveRealm(to: RouteLocationNormalized): Realm {
  *
  * ADP 的 RouteTransformer 要求一级菜单的 path 是绝对路径，而管理后台挂载点
  * 直到运行时拿到 admin_path 才确定，因此在注册前做一次前缀改写。
+ *
+ * `meta.activePath` 也必须一起改写：隐藏的详情页（探针详情、工单详情这类
+ * `isHide: true` 的页面）靠它指回父级菜单来保持高亮，只改 path 会让侧边栏
+ * 在动态后台路径下失去高亮。
  */
-export function prefixRoutePaths<T extends { path?: string; children?: T[] }>(
-  routes: T[],
-  prefix: string
-): T[] {
+export function prefixRoutePaths<
+  T extends { path?: string; meta?: Record<string, any>; children?: T[] }
+>(routes: T[], prefix: string): T[] {
   const clean = `/${prefix.replace(/^\/+|\/+$/g, '')}`
+  const withPrefix = (p: string) => (p.startsWith('/') ? `${clean}${p}` : p)
 
   const walk = (list: T[]): T[] =>
     list.map((route) => {
       const next = { ...route } as T
-      if (typeof route.path === 'string' && route.path.startsWith('/')) {
-        next.path = `${clean}${route.path}`
+
+      if (typeof route.path === 'string') {
+        next.path = withPrefix(route.path)
       }
+
+      if (typeof route.meta?.activePath === 'string') {
+        next.meta = { ...route.meta, activePath: withPrefix(route.meta.activePath) }
+      }
+
       if (route.children?.length) {
         next.children = walk(route.children)
       }
+
       return next
     })
 
