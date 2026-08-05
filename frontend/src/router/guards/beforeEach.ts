@@ -18,6 +18,7 @@ import NProgress from 'nprogress'
 
 import { useSettingStore } from '@/store/modules/setting'
 import { useMenuStore } from '@/store/modules/menu'
+import { useUserStore } from '@/store/modules/user'
 import { useWorktabStore } from '@/store/modules/worktab'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
@@ -286,7 +287,15 @@ async function registerAdminRoutes(
     }
 
     const adminPath = cachedAdminPath || (await fetchAdminPath())
-    const permissions: string[] = (adminAuth.profile as any)?.permissions ?? []
+    const profile = adminAuth.profile as any
+    const permissions: string[] = profile?.permissions ?? []
+
+    // 把管理员身份同步进 ADP 的 user store。
+    //
+    // 这是 `v-auth` / `useAuth().hasAuth()` 的数据来源：在 frontend 权限模式下
+    // 它们读的是 `userStore.info.buttons`，**不是**路由 meta.authList。不同步的话
+    // buttons 恒为空，页面上所有带 v-auth 的按钮会被全部隐藏。
+    syncAdminIdentityToUserStore(profile, permissions)
 
     const menuList = prefixRoutePaths(filterByPermission(asyncRoutes, permissions), adminPath)
 
@@ -312,6 +321,27 @@ async function registerAdminRoutes(
     closeLoading()
     next({ name: 'Exception500', replace: true })
   }
+}
+
+/**
+ * 把管理员身份写进 ADP 的 user store。
+ *
+ * ADP 的按钮级权限（`v-auth="'order.approve'"` / `hasAuth('order.approve')`）在
+ * frontend 模式下只认 `userStore.info.buttons`。本项目的管理员身份存在
+ * `stores/adminAuth` 里，两者必须同步一次，否则按钮级裁剪要么全放要么全禁。
+ *
+ * 超管（权限含 `*`）给 `R_SUPER` 角色，其余给 `R_ADMIN`。
+ */
+function syncAdminIdentityToUserStore(profile: any, permissions: string[]): void {
+  const userStore = useUserStore()
+  userStore.setUserInfo({
+    buttons: permissions,
+    roles: permissions.includes('*') ? ['R_SUPER', 'R_ADMIN'] : ['R_ADMIN'],
+    userId: Number(profile?.id ?? 0),
+    userName: profile?.username ?? '管理员',
+    email: profile?.email ?? '',
+    avatar: profile?.avatar ?? ''
+  })
 }
 
 /**
