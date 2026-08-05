@@ -141,7 +141,7 @@ func (h *Handler) GetOrder(c *gin.Context) {
 ### Prerequisites
 
 - Go 1.25+
-- Node.js 18+ (for frontend)
+- Node.js 20.19+ or 22.12+ (for frontend; Vite 7 requires it)
 - MySQL / PostgreSQL / SQLite
 
 ### Backend
@@ -170,9 +170,9 @@ go test ./...
 # With coverage
 go test -cover ./...
 
-# Frontend
+# Frontend — there is no test runner yet. The gate is the typecheck:
 cd frontend
-npm test
+npm run typecheck
 ```
 
 ### Linting
@@ -183,6 +183,7 @@ golangci-lint run
 
 # Frontend
 npm run lint
+npm run lint:stylelint
 ```
 
 ## Pull Request Process
@@ -196,14 +197,15 @@ npm run lint
 
 3. **Ensure all tests pass**:
    ```bash
-   go test ./...
-   npm test
+   go test ./...          # backend
+   npm run typecheck      # frontend — no test runner yet, keep this at zero errors
+   npm run build          # frontend must build
    ```
 
 4. **Run linter**:
    ```bash
    golangci-lint run
-   npm run lint
+   npm run lint && npm run lint:stylelint
    ```
 
 5. **Verify constitution compliance** (see checklist below)
@@ -251,3 +253,24 @@ backend/
 By contributing to this project, you agree to follow the principles defined in the constitution.
 
 **Author**: 星云猫 nebulamao
+
+## Frontend Conventions
+
+The web tier is a single Vue 3 SPA in `frontend/`, built on the Art Design Pro
+template (Element Plus). Constitution v1.1.0 records this as the UI standard.
+
+**Before writing any page, read `docs/frontend/adp-conventions.md`.** It is the
+extracted API reference for the template — `useTable`, `ArtTable`, `ArtSearchBar`,
+`ArtForm`, the `--art-*` custom properties, the route `meta` schema.
+
+Rules enforced in review:
+
+- List pages use `useTable` + `ArtTable` + `ArtTableHeader` + `ArtSearchBar`; no
+  hand-rolled fetch/pagination
+- No hardcoded colour literals, no `!important`; pages must be correct in both
+  light and dark themes
+- Pages live in `src/views/**` and declare `defineOptions({ name: '...' })`
+- Element Plus, the `Art*` components and the vue/router/pinia/vueuse APIs are
+  auto-imported — do not import them by hand
+- Do not add to `src/pages`, `src/layouts` or the legacy components at the top of
+  `src/components`; that is pre-migration code awaiting deletion
