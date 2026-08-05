@@ -140,13 +140,37 @@ function resolveRealm(path: string): Realm | null
 
 ## 4. 阶段划分
 
-| 阶段 | 负责人 | 内容 | 出口条件 |
-|---|---|---|---|
-| **P0 地基** | Claude（串行） | §5.1 | `npm run build` + `npm run typecheck` 绿；2 个样板页跑通 |
-| **P1 并行改造** | W1–W8（codex） | §5.2 | 各自 DoD 全绿 |
-| **P2 审核** | R1/R2（codex） | §6 | 无 blocker |
-| **P3 合并** | Claude | §8 | 全量 build 绿 |
-| **P4 收尾** | Claude | §9 | 删 adminweb/antd、后端单目录、CI/文档/宪法 |
+| 阶段 | 负责人 | 内容 | 出口条件 | 状态 |
+|---|---|---|---|---|
+| **P0 地基** | Claude（串行） | §5.1 | `npm run build` + `npm run typecheck` 绿 | ✅ 完成 |
+| **P1 并行改造** | W1–W8（codex） | §5.2 | 各自 DoD 全绿 | 🔄 进行中 |
+| **P2 审核** | R1/R2（codex） | §6 | 无 blocker | 🔄 进行中 |
+| **P3 合并** | Claude | §8 | 全量 build 绿 | ⏳ 待开始 |
+| **P4 收尾** | Claude | §9 | 删 adminweb/antd、后端单目录、CI/文档/宪法 | 🔄 部分完成 |
+
+### P0 实际结果（与计划的偏差）
+
+- **类型检查门禁**：基线原有 **160 个** `vue-tsc` 报错，会让 DoD 的类型门禁失效。已修到 **0**：
+  待删目录（`src/pages`、`src/layouts`、旧组件）移出 `tsconfig` 检查范围；补回漏拷的
+  `src/env.d.ts`；`AppRouteRecord` 递归类型被 Vue `UnwrapRef` 改形的问题用 `as Ref<...>` 解决；
+  `ArtTable` 改用 `TableInstance`；`ArtForm`/`ArtSearchBar` 的对象 `default` 改成工厂函数；
+  按不变量 #12 把后端真实返回的 PascalCase 别名补进 `services/types.ts`。
+- **组件自动注册**：`unplugin-vue-components` 默认会同时扫到旧的 Ant Design 组件并**优先注册**，
+  导致新组件被静默忽略。已限定只扫 `components/{core,business}`。
+- **样板页**：未单独产出。规范圣经 §1 已含模板样板的逐字骨架，worker 直接照抄；
+  改为用「第一页自查 + reviewer 优先审第一页」来兜底系统性问题。
+- **环境变量**：不使用 `.env`（仓库根 `.gitignore` 全局吞掉 `.env*`），改由 `vite define` 内联。
+
+### P4 已完成的部分
+
+- ✅ **后端单目录化**：`router.go` 421 → 252 行，删掉 `static-admin` 分流与全部 `#/` 重定向；
+  契约测试先改后实现（宪法第 V 条），5 个 SPA 测试全过，并新增了真正的路径穿越测试。
+- ✅ **宪法修订** 1.0.0 → 1.1.0：前端 UI 库 Ant Design Vue → Element Plus (Art Design Pro)，
+  含 Sync Impact Report。
+- ✅ **文档**：README、AGENTS.md、CONTRIBUTING.md、`frontend/CLAUDE.md`、
+  `docs/admin-path-validation.md` 全部对齐新架构。
+- ✅ **Docker**：`node:20-*` 是浮动 tag，可能低于 Vite 7 要求的 20.19，已固定到 22（与 CI 一致）。
+- ⏳ 待做：删 `adminweb/`、删 antd 依赖与 `src/pages`/`src/layouts`/旧组件、清理死代码。
 
 **P1 未开始前 worker 不得启动**——地基不稳会导致 8 份返工。
 
