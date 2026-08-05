@@ -54,6 +54,45 @@ Go 1.25.0 (backend), TypeScript + Vue 3 (frontend): Follow standard conventions
 - main: Added Go 1.25.0 (backend), TypeScript + Vue 3 (frontend) + Gin, GORM, go-playground/validator, Vue + Pinia + Ant Design Vue, ECharts wrapper
 
 <!-- MANUAL ADDITIONS START -->
+
+## Frontend (supersedes the auto-generated stack lines above)
+
+The auto-generated sections above are stale: they predate the web-tier
+consolidation and still say "Ant Design Vue", and they list a `backend/ frontend/
+tests/` layout that never mentioned `adminweb/`.
+
+Current state:
+
+- **`frontend/`** is the single web application — a history-mode SPA carrying the
+  public site, auth pages, user console (`/console`), installer (`/install`) and
+  the admin console (at the operator-configured `admin_path`). Built with npm; the
+  backend serves it from `./static`.
+- **UI standard is Element Plus via the Art Design Pro template**, not Ant Design
+  Vue. Constitution v1.1.0 records this change.
+  - Conventions (required reading before writing a page):
+    `docs/frontend/adp-conventions.md`
+  - Migration plan and rules: `docs/frontend/adp-migration-plan.md`
+- **`adminweb/`** is a legacy second SPA being folded into `frontend/`. Do not
+  build on it; it is deleted at the end of the migration.
+
+While the migration is in flight, `frontend/src/pages`, `frontend/src/layouts` and
+the Ant Design components at the top level of `frontend/src/components` are dead
+code kept only as a porting reference. They are excluded from `tsconfig.json` and
+no route points at them. New pages go in `frontend/src/views`.
+
+Frontend commands (`frontend/package.json`) — note CONTRIBUTING.md's `npm test`
+does not exist here; there is no frontend test runner yet:
+
+```bash
+npm run dev         # :5173, proxies /api, /admin/api, /sdk, /uploads to :8080
+npm run typecheck   # vue-tsc --noEmit — must stay at zero errors
+npm run lint        # eslint
+npm run build       # vite build -> frontend/dist
+```
+
+Go note: the system `go` on this machine is 1.19; this project needs the 1.25
+toolchain at `/usr/local/go/bin/go`.
+
 <!-- MANUAL ADDITIONS END -->
 
 **Author**: 星云猫 nebulamao

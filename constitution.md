@@ -1,6 +1,30 @@
 <!--
   SYNC IMPACT REPORT
   ==================
+  Version change: 1.0.0 → 1.1.0 (Frontend UI library standard changed)
+  Rationale:
+    The web tier was consolidated into a single SPA built on the Art Design Pro
+    admin template, which is an Element Plus system. Ant Design Vue and Element
+    Plus cannot both be the standard, and the template supplies the component
+    library, theme system, layout shell and data-table/form hooks the project
+    now depends on. See docs/frontend/adp-migration-plan.md.
+  Modified sections:
+    - Technology Standards → Frontend: UI Library
+      Ant Design Vue → Element Plus (via Art Design Pro)
+      Charts: ECharts (unchanged; now consumed through the template's
+      useChart wrappers so charts follow the active theme)
+  Impact on existing code:
+    - frontend/ migrates page by page; Ant Design Vue remains installed until
+      the last page is converted, then is removed together with src/pages,
+      src/layouts and the legacy shared components.
+    - adminweb/ is deleted once its already-converted admin pages have been
+      ported into frontend/.
+    - No backend impact. Core Principles I-VII are unchanged.
+  Templates requiring updates:
+    - AGENTS.md: ⚠ stack section still says "Ant Design Vue"; update when the
+      migration lands.
+  Follow-up TODOs: None
+
   Version change: N/A → 1.0.0 (Initial creation)
   Added principles:
     - I. Validator-First Data Validation
@@ -147,8 +171,18 @@ Code MUST be as simple as the requirements allow. Avoid speculative generalizati
 | Language | TypeScript |
 | Framework | Vue 3 |
 | State Management | Pinia |
-| UI Library | Ant Design Vue |
+| UI Library | Element Plus (via Art Design Pro) |
 | Charts | ECharts |
+
+The web tier is a single history-mode SPA in `frontend/`, built on the Art Design
+Pro template. Pages MUST follow the template's conventions rather than hand-rolling
+equivalents — see `docs/frontend/adp-conventions.md`. In particular:
+
+- List pages use `useTable` + `ArtTable` + `ArtTableHeader` + `ArtSearchBar`
+- Colours come from the `--art-*` / `--el-*` custom properties; hardcoded colour
+  literals and `!important` are prohibited, and every page MUST be correct in both
+  light and dark themes
+- Charts go through the template's `useChart` wrappers so they follow the theme
 
 ### Code Conventions
 
@@ -206,4 +240,4 @@ Code MUST be as simple as the requirements allow. Avoid speculative generalizati
 
 For development-time guidance and workflow instructions, refer to `AGENTS.md` in the repository root.
 
-**Version**: 1.0.0 | **Ratified**: 2026-03-02 | **Last Amended**: 2026-03-02 | **Author**: 星云猫 nebulamao
+**Version**: 1.1.0 | **Ratified**: 2026-03-02 | **Last Amended**: 2026-08-05 | **Author**: 星云猫 nebulamao
