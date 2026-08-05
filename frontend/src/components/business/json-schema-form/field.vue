@@ -120,13 +120,9 @@
   const isObject = computed(
     () => String(props.schema?.type || '') === 'object' && Boolean(props.schema?.properties)
   )
-  const hasEnum = computed(
-    () => Array.isArray(props.schema?.enum) && props.schema.enum.length > 0
-  )
+  const hasEnum = computed(() => Array.isArray(props.schema?.enum) && props.schema.enum.length > 0)
   const isBoolean = computed(() => String(props.schema?.type || '') === 'boolean')
-  const isNumber = computed(() =>
-    ['number', 'integer'].includes(String(props.schema?.type || ''))
-  )
+  const isNumber = computed(() => ['number', 'integer'].includes(String(props.schema?.type || '')))
   const isSecret = computed(() => {
     const format = String(props.schema?.format || '')
       .trim()
@@ -189,15 +185,15 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    color: var(--art-gray-900);
     font-weight: 600;
+    color: var(--art-gray-900);
   }
 
   .object-description,
   .field-description {
-    color: var(--art-gray-600);
     font-size: 12px;
     font-weight: 400;
+    color: var(--art-gray-600);
   }
 
   .object-grid {
@@ -211,8 +207,8 @@
   }
 
   .field-label {
-    color: var(--art-gray-900);
     font-weight: 600;
+    color: var(--art-gray-900);
   }
 
   .field-control,
