@@ -44,8 +44,8 @@
 <style lang="scss" scoped>
   .http-request-bar {
     display: flex;
-    align-items: center;
     gap: 12px;
+    align-items: center;
     padding: 10px 14px;
     background: var(--default-box-color);
     border: 1px solid var(--art-card-border);
@@ -100,9 +100,9 @@
     flex: 1;
     min-width: 0;
     overflow: hidden;
-    color: var(--art-gray-900);
-    font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', Menlo, monospace;
+    font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
     font-size: 12px;
+    color: var(--art-gray-900);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -110,17 +110,17 @@
   .status-info {
     display: flex;
     flex-shrink: 0;
-    align-items: center;
     gap: 8px;
+    align-items: center;
   }
 
   .duration {
-    color: var(--art-gray-600);
-    font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', Menlo, monospace;
+    font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
     font-size: 12px;
+    color: var(--art-gray-600);
   }
 
-  @media (max-width: 640px) {
+  @media (width <= 640px) {
     .http-request-bar {
       flex-wrap: wrap;
     }
@@ -128,8 +128,8 @@
     .request-url {
       order: 3;
       width: 100%;
-      white-space: normal;
       word-break: break-all;
+      white-space: normal;
     }
   }
 </style>

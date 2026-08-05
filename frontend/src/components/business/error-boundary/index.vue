@@ -55,9 +55,9 @@
 
   .title {
     margin-bottom: 6px;
-    color: var(--art-gray-900);
     font-size: 18px;
     font-weight: 700;
+    color: var(--art-gray-900);
   }
 
   .description {
@@ -67,11 +67,11 @@
 
   .message {
     max-height: 240px;
-    margin: 0 0 12px;
     padding: 12px;
+    margin: 0 0 12px;
     overflow: auto;
-    color: var(--art-gray-800);
     font-size: 12px;
+    color: var(--art-gray-800);
     white-space: pre-wrap;
     background: var(--art-gray-100);
     border: 1px solid var(--default-border);

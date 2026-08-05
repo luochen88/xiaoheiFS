@@ -330,8 +330,8 @@
 
   .inline-edit-actions {
     display: flex;
-    justify-content: flex-end;
     gap: 8px;
+    justify-content: flex-end;
     margin-top: 12px;
   }
 

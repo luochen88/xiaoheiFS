@@ -73,15 +73,15 @@
   .header-key,
   .header-value {
     display: inline-block;
-    font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', Menlo, monospace;
+    font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
     font-size: 12px;
     line-height: 1.6;
     word-break: break-all;
   }
 
   .header-key {
-    color: var(--el-color-primary);
     font-weight: 600;
+    color: var(--el-color-primary);
   }
 
   .header-value {

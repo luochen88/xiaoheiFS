@@ -61,14 +61,14 @@
 
   .card-title,
   .total-label {
-    color: var(--art-gray-900);
     font-weight: 600;
+    color: var(--art-gray-900);
   }
 
   .price-value {
     display: block;
-    color: var(--art-gray-900);
     font-weight: 600;
+    color: var(--art-gray-900);
     text-align: right;
   }
 
