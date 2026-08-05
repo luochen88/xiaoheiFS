@@ -73,6 +73,44 @@ func (m *Middleware) RequireUser() gin.HandlerFunc {
 	}
 }
 
+// OptionalUser identifies the caller when a valid user token is present and
+// otherwise lets the request through anonymously.
+//
+// It exists for the storefront: the catalog is browsable without an account, but
+// a signed-in visitor must still see their tier pricing. Handlers read the caller
+// with getUserID, which returns 0 for guests, so they need no special casing.
+//
+// Anything that mutates state or exposes per-user data must keep using
+// RequireUser — this middleware never rejects.
+func (m *Middleware) OptionalUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claims, err := m.parseToken(c)
+		if err != nil {
+			c.Next()
+			return
+		}
+		userID, ok := toInt64Claim(claims["user_id"])
+		if !ok {
+			c.Next()
+			return
+		}
+		role, _ := claims["role"].(string)
+		if role != string(domain.UserRoleUser) {
+			c.Next()
+			return
+		}
+		c.Set("user_id", userID)
+		c.Set("role", role)
+		c.Set("actor_mode", string(domain.RequestActorModeUserJWT))
+		c.Set("request_actor", domain.RequestActor{
+			Mode:   domain.RequestActorModeUserJWT,
+			UserID: userID,
+			Role:   role,
+		})
+		c.Next()
+	}
+}
+
 func (m *Middleware) RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		claims, err := m.parseToken(c)

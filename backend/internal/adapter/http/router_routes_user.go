@@ -5,6 +5,21 @@ import "github.com/gin-gonic/gin"
 type userRoutesRegistrar struct{}
 
 func (userRoutesRegistrar) Register(r *gin.Engine, handler *Handler, middleware *Middleware) {
+	// Storefront reads are browsable without an account: visitors configure and fill
+	// a cart before being asked to sign in, and only check-out requires a session.
+	// OptionalUser still identifies signed-in callers so tier pricing keeps applying
+	// (applyUserTierPackagePricing is a no-op when the caller is a guest).
+	catalog := r.Group("/api/v1")
+	catalog.Use(middleware.OptionalUser())
+	{
+		catalog.GET("/goods-types", handler.GoodsTypes)
+		catalog.GET("/catalog", handler.Catalog)
+		catalog.GET("/plan-groups", handler.PlanGroups)
+		catalog.GET("/packages", handler.Packages)
+		catalog.GET("/system-images", handler.SystemImages)
+		catalog.GET("/billing-cycles", handler.BillingCycles)
+	}
+
 	user := r.Group("/api/v1")
 	user.Use(middleware.RequireUser())
 	{
@@ -25,12 +40,6 @@ func (userRoutesRegistrar) Register(r *gin.Engine, handler *Handler, middleware 
 		user.GET("/realname/status", handler.RealNameStatus)
 		user.POST("/realname/verify", handler.RealNameVerify)
 		user.GET("/dashboard", handler.Dashboard)
-		user.GET("/goods-types", handler.GoodsTypes)
-		user.GET("/catalog", handler.Catalog)
-		user.GET("/plan-groups", handler.PlanGroups)
-		user.GET("/packages", handler.Packages)
-		user.GET("/system-images", handler.SystemImages)
-		user.GET("/billing-cycles", handler.BillingCycles)
 		user.GET("/payments/providers", handler.PaymentMethods)
 		user.POST("/auth/logout", handler.Logout)
 		user.GET("/cart", handler.CartList)
