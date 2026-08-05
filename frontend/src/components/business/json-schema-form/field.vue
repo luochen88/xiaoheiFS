@@ -1,10 +1,12 @@
 <template>
   <template v-if="isObject">
-    <section class="object-group">
-      <div class="object-title">
-        <span>{{ title }}</span>
-        <span v-if="description" class="object-description">{{ description }}</span>
-      </div>
+    <ElCard class="object-card" shadow="never">
+      <template #header>
+        <div class="object-title">
+          <span>{{ title }}</span>
+          <span v-if="description" class="object-description">{{ description }}</span>
+        </div>
+      </template>
 
       <div class="object-grid">
         <component
@@ -18,7 +20,7 @@
           :ui="ui?.[key]"
         />
       </div>
-    </section>
+    </ElCard>
   </template>
 
   <ElFormItem v-else :required="required" class="field-item">
@@ -173,10 +175,9 @@
 </script>
 
 <style lang="scss" scoped>
-  .object-group {
-    padding: 12px;
+  .object-card {
     background: var(--default-box-color);
-    border: 1px solid var(--art-card-border);
+    border-color: var(--art-card-border);
     border-radius: calc(var(--custom-radius) / 2 + 2px);
   }
 
@@ -184,7 +185,6 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    margin-bottom: 12px;
     font-weight: 600;
     color: var(--art-gray-900);
   }
