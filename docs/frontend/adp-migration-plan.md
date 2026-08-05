@@ -170,7 +170,22 @@ function resolveRealm(path: string): Realm | null
 - ✅ **文档**：README、AGENTS.md、CONTRIBUTING.md、`frontend/CLAUDE.md`、
   `docs/admin-path-validation.md` 全部对齐新架构。
 - ✅ **Docker**：`node:20-*` 是浮动 tag，可能低于 Vite 7 要求的 20.19，已固定到 22（与 CI 一致）。
+- ✅ **发布路径已端到端验证**：用更新后的 lock 跑 `npm ci`（658 包）通过；只用
+  `docker/Dockerfile` 拷贝的那几个文件（package*.json / src / public / tsconfig.json /
+  index.html / vite.config.ts）能独立构建成功。CI 与镜像构建不会因本次改造而挂。
 - ⏳ 待做：删 `adminweb/`、删 antd 依赖与 `src/pages`/`src/layouts`/旧组件、清理死代码。
+
+### P1/P2/P3 实际结果
+
+- 8 个切片全部交付并各自经过一轮审核 + 一轮返修。
+- 审核抓到的**功能性回归**（不是样式问题）：CMS 卡片丢失按 key 的默认值兜底、
+  登录页被擅自加了强制拖拽验证、VPS 升降配的后端字段兜底被「规范化」删掉、
+  站点设置被擅自改成必填、审计页把服务端筛选做成了单页前端过滤。
+- 协调者修掉的**地基缺陷**：`meta.activePath` 未随 admin 路径改写、
+  ADP user store 从未被填充导致所有 `v-auth` 按钮恒隐藏、
+  商品目录接口未对游客开放（公开购物车的硬阻塞）。
+- 合并后独立合规扫描：残留 antd 0、硬编码颜色 0、`!important` 0、
+  列表页 `useTable` 覆盖率 5/5、缺 `defineOptions` 0。
 
 **P1 未开始前 worker 不得启动**——地基不稳会导致 8 份返工。
 
