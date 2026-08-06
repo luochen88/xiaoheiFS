@@ -489,3 +489,411 @@ export const getGoodsTypeCapabilities = (id: number | string) =>
   http.get<GoodsTypeCapabilities>(`/admin/api/v1/goods-types/${id}/capabilities`);
 export const updateGoodsTypeCapabilities = (id: number | string, payload: { resize_enabled?: boolean | null; refund_enabled?: boolean | null }) =>
   http.patch(`/admin/api/v1/goods-types/${id}/capabilities`, payload);
+
+// Compatibility aliases for migrated admin views. The adminweb views consume the
+// response body directly, while this app's service layer returns Axios responses.
+const unwrapAdmin = async <T>(response: Promise<{ data: T }> | { data: T }): Promise<T> =>
+  (await response).data
+
+export type {
+  AdminProfile,
+  Ticket,
+  TicketDetailResponse,
+  UserTierGroup,
+  UserTierDiscountRule,
+  UserTierAutoRule
+} from './types'
+export type AdminProfileRecord = AdminProfile & {
+  avatar_url?: string
+  role?: string
+  status?: string
+  permission_group_id?: number
+}
+export type CMSCategoryRecord = CMSCategory
+export type CMSPostRecord = CMSPost
+export type CMSBlockRecord = CMSBlock
+export type SettingItemRecord = SettingItem
+export type TicketRecord = Ticket & {
+  last_reply_at?: string | null
+  last_reply_by?: number | null
+  closed_at?: string | null
+}
+export type TicketDetailResponseRecord = TicketDetailResponse
+export type TicketMessageRecord = import('./types').TicketMessage
+export type TicketResourceRecord = import('./types').TicketResource
+export type UploadAssetRecord = UploadItem
+export type AdminAuditLogRecord = import('./types').AdminAuditLog
+export type ScheduledTaskStrategy = 'interval' | 'daily'
+export interface ScheduledTaskRecord {
+  key?: string
+  name?: string
+  description?: string
+  enabled?: boolean
+  strategy?: ScheduledTaskStrategy
+  interval_sec?: number
+  daily_at?: string
+  last_run_at?: string | null
+  next_run_at?: string | null
+  running?: boolean
+  last_status?: string
+  last_error?: string
+  last_elapsed_sec?: number
+}
+export interface ScheduledTaskRunRecord {
+  id?: number
+  task_key?: string
+  status?: string
+  started_at?: string
+  finished_at?: string | null
+  duration_sec?: number
+  message?: string
+  created_at?: string
+  ID?: number
+  TaskKey?: string
+  Status?: string
+  StartedAt?: string
+  FinishedAt?: string | null
+  DurationSec?: number
+  Message?: string
+  CreatedAt?: string
+}
+export type PermissionGroupRecord = PermissionGroup & {
+  ID?: number
+  Name?: string
+  Description?: string
+  permissions_json?: string
+  PermissionsJSON?: string
+  CreatedAt?: string
+  UpdatedAt?: string
+}
+export type PermissionRecord = PermissionItem & {
+  Code?: string
+  Name?: string
+  FriendlyName?: string
+  Category?: string
+  ParentCode?: string
+  SortOrder?: number
+}
+export type UserRecord = AdminUser & {
+  avatar_url?: string
+  role?: string
+}
+export type UserTierGroupRecord = UserTierGroup
+export type RealNameVerification = import('./types').RealNameVerification
+export type WalletInfo = import('./types').WalletInfo
+export type WalletTransaction = import('./types').WalletTransaction
+export type WalletInfoRecord = import('./types').WalletInfo
+export type WalletTransactionRecord = import('./types').WalletTransaction
+export type OrderRecord = Order
+export type CatalogGoodsType = GoodsType & {
+  ID?: number
+  Code?: string
+  Name?: string
+  Active?: boolean
+  SortOrder?: number
+  AutomationPluginID?: string
+  AutomationInstanceID?: string
+}
+export type CatalogRegion = Region & {
+  ID?: number
+  GoodsTypeID?: number
+  Code?: string
+  Name?: string
+  Active?: boolean
+}
+export type CatalogPlanGroup = Line & {
+  ID?: number
+  GoodsTypeID?: number
+  RegionID?: number
+  LineID?: number
+  LineName?: string
+  Code?: string
+  Name?: string
+  UnitCore?: number
+  UnitMem?: number
+  UnitDisk?: number
+  UnitBW?: number
+  AddCoreMin?: number
+  AddCoreMax?: number
+  AddCoreStep?: number
+  AddMemMin?: number
+  AddMemMax?: number
+  AddMemStep?: number
+  AddDiskMin?: number
+  AddDiskMax?: number
+  AddDiskStep?: number
+  AddBwMin?: number
+  AddBwMax?: number
+  AddBwStep?: number
+  Active?: boolean
+  Visible?: boolean
+  CapacityRemaining?: number
+  SortOrder?: number
+}
+export type CatalogPackage = Package & {
+  ID?: number
+  PlanGroupID?: number
+  Name?: string
+  Cores?: number
+  MemoryGB?: number
+  DiskGB?: number
+  BandwidthMB?: number
+  CPUModel?: string
+  PortNum?: number
+  Monthly?: number
+  Active?: boolean
+  Visible?: boolean
+  CapacityRemaining?: number
+  SortOrder?: number
+}
+export type CatalogSystemImage = SystemImage & {
+  ID?: number
+  ImageID?: number
+  Name?: string
+  Type?: string
+  Enabled?: boolean
+}
+export type CatalogBillingCycle = BillingCycle & {
+  ID?: number
+  Name?: string
+  Months?: number
+  Multiplier?: number
+  MinQty?: number
+  MaxQty?: number
+  Active?: boolean
+  SortOrder?: number
+}
+
+export const hasAdminPermission = (
+  granted: string[] | undefined,
+  required: string | string[]
+): boolean => {
+  const permissions = Array.isArray(granted) ? granted : []
+  const requiredList = Array.isArray(required) ? required : [required]
+  return requiredList.some((mark) =>
+    permissions.some(
+      (permission) =>
+        permission === '*' ||
+        permission === mark ||
+        (permission.endsWith('*') && mark.startsWith(permission.slice(0, -1)))
+    )
+  )
+}
+
+export const mapAdminProfileToUserInfo = (profile: AdminProfile) => ({
+  buttons: profile.permissions || [],
+  roles: hasAdminPermission(profile.permissions, '*') ? ['R_SUPER'] : ['R_ADMIN'],
+  userId: Number(profile.id || 0),
+  userName: profile.username || '管理员',
+  email: profile.email || '',
+  avatar: profile.avatar || '',
+  qq: profile.qq || ''
+})
+
+export const fetchAdminUsers = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listAdminUsers(params))
+export const fetchAdminUserDetail = (id: number | string) => unwrapAdmin(getAdminUserDetail(id))
+export const fetchUserTierGroups = () => unwrapAdmin(listUserTierGroups())
+export const fetchUserTierDiscountRules = (id: number | string) =>
+  unwrapAdmin(listUserTierDiscountRules(id))
+export const fetchUserTierAutoRules = (id: number | string) =>
+  unwrapAdmin(listUserTierAutoRules(id))
+export const fetchAdminOrders = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listAdminOrders(params))
+export const fetchAdminWalletInfo = (id: number | string) => unwrapAdmin(getAdminWalletInfo(id))
+export const fetchAdminWalletTransactions = (
+  id: number | string,
+  params?: Record<string, unknown>
+) => unwrapAdmin(listAdminWalletTransactions(id, params))
+export const fetchRealNameRecords = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listRealNameRecords(params))
+export const impersonateAdminUser = (id: number | string) => unwrapAdmin(adminImpersonateUser(id))
+export const resetAdminUserPassword = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(resetUserPassword(id, payload))
+export const updateAdminUserStatus = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateUserStatus(id, payload))
+export const updateAdminUserTier = (
+  id: number | string,
+  payload: { group_id: number; expire_at?: string }
+) => unwrapAdmin(setAdminUserTier(id, payload))
+
+export const fetchAdminProfile = () => unwrapAdmin(getAdminProfile())
+export const fetchAdminPermissions = () => unwrapAdmin(listPermissions())
+export const fetchPermissionGroups = () => unwrapAdmin(listPermissionGroups())
+export const updateAdminProfileRecord = (payload: Record<string, unknown>) =>
+  unwrapAdmin(updateAdminProfile(payload))
+export const changeAdminPasswordRecord = (payload: {
+  old_password: string
+  new_password: string
+}) => unwrapAdmin(changeAdminPassword(payload))
+
+export const fetchAdminAccounts = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listAdmins(params))
+export const createAdminAccount = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createAdmin(payload))
+export const updateAdminAccount = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateAdmin(id, payload))
+export const updateAdminAccountStatus = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateAdminStatus(id, payload))
+
+export const fetchAdminGoodsTypes = () => unwrapAdmin(listGoodsTypes())
+export const fetchAdminRegions = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listRegions(params))
+export const fetchAdminPlanGroups = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listPlanGroups(params))
+export const fetchAdminLines = (params?: Record<string, unknown>) => unwrapAdmin(listLines(params))
+export const fetchAdminPackages = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listPackages(params))
+export const fetchAdminSystemImages = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listSystemImages(params))
+export const fetchAdminBillingCycles = () => unwrapAdmin(listBillingCycles())
+export const createAdminSystemImage = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createSystemImage(payload))
+export const updateAdminSystemImage = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateSystemImage(id, payload))
+export const deleteAdminSystemImage = (id: number | string) => unwrapAdmin(deleteSystemImage(id))
+export const bulkDeleteAdminSystemImages = (ids: Array<number | string>) =>
+  unwrapAdmin(bulkDeleteSystemImages(ids))
+export const setAdminLineSystemImages = (
+  id: number | string,
+  payload: { image_ids: Array<number | string> }
+) => unwrapAdmin(setLineSystemImages(id, payload))
+export const syncAdminSystemImages = (params?: Record<string, unknown>) =>
+  unwrapAdmin(syncSystemImages(params))
+
+export const fetchAdminScheduledTasks = () => unwrapAdmin(listAdminScheduledTasks())
+export const fetchAdminScheduledTaskRuns = (key: string, params?: { limit?: number }) =>
+  unwrapAdmin(
+    http.get<ApiList<ScheduledTaskRunRecord>>(`/admin/api/v1/scheduled-tasks/${key}/runs`, {
+      params
+    })
+  )
+export const fetchAdminTickets = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listAdminTickets(params))
+export const fetchAdminTicketDetail = (id: number | string) => unwrapAdmin(getAdminTicketDetail(id))
+export const createAdminTicketMessage = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(addAdminTicketMessage(id, payload))
+
+export const fetchCMSCategories = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listCmsCategories(params))
+export const createCMSCategory = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createCmsCategory(payload))
+export const updateCMSCategory = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateCmsCategory(id, payload))
+export const deleteCMSCategory = (id: number | string) => unwrapAdmin(deleteCmsCategory(id))
+export const fetchCMSPosts = (params?: Record<string, unknown>) => unwrapAdmin(listCmsPosts(params))
+export const createCMSPost = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createCmsPost(payload))
+export const updateCMSPost = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateCmsPost(id, payload))
+export const deleteCMSPost = (id: number | string) => unwrapAdmin(deleteCmsPost(id))
+export const fetchCMSBlocks = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listCmsBlocks(params))
+export const createCMSBlock = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createCmsBlock(payload))
+export const updateCMSBlock = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateCmsBlock(id, payload))
+export const deleteCMSBlock = (id: number | string) => unwrapAdmin(deleteCmsBlock(id))
+export const fetchAdminUploads = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listUploads(params))
+export const uploadAdminAsset = (file: File) => unwrapAdmin(uploadFile(file))
+export const fetchAdminSettings = () => unwrapAdmin(listSettings())
+export const updateAdminSettings = (payload: Record<string, unknown>) =>
+  unwrapAdmin(updateSetting(payload))
+
+export type { DebugLogsResponse } from './types'
+export type AutomationConfigRecord = AutomationConfig & {
+  configured?: boolean
+  compat_mode?: boolean
+  plugins_ready?: boolean
+  config_source?: string
+  plugin_id?: string
+  instance_id?: string
+}
+export type IntegrationSyncLogRecord = import('./types').IntegrationSyncLog
+export type AutomationLogRecord = import('./types').AutomationLog
+export type AdminPluginRecord = PluginListItem
+export type CouponProductGroupRecord = CouponProductGroup
+export type CouponRecord = Coupon
+
+export const fetchAdminAutomationConfig = () => unwrapAdmin(getAutomationConfig())
+export const fetchAdminAutomationSyncLogs = (params?: Record<string, unknown>) =>
+  unwrapAdmin(
+    http.get<ApiList<IntegrationSyncLogRecord>>('/admin/api/v1/integrations/automation/sync-logs', {
+      params
+    })
+  )
+export const fetchAdminDebugStatus = () => unwrapAdmin(getDebugStatus())
+export const fetchAdminDebugLogs = (params?: Record<string, unknown>) =>
+  unwrapAdmin(getDebugLogs(params))
+export const updateAdminDebugStatus = (payload: { enabled: boolean }) =>
+  unwrapAdmin(updateDebugStatus(payload))
+
+export const bulkDeleteAdminBillingCycles = (ids: Array<number | string>) =>
+  unwrapAdmin(bulkDeleteBillingCycles(ids))
+export const bulkDeleteAdminPackages = (ids: Array<number | string>) =>
+  unwrapAdmin(bulkDeletePackages(ids))
+export const bulkDeleteAdminPlanGroups = (ids: Array<number | string>) =>
+  unwrapAdmin(bulkDeletePlanGroups(ids))
+export const bulkDeleteAdminRegions = (ids: Array<number | string>) =>
+  unwrapAdmin(bulkDeleteRegions(ids))
+export const createAdminBillingCycle = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createBillingCycle(payload))
+export const createAdminGoodsType = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createGoodsType(payload))
+export const createAdminPackage = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createPackage(payload))
+export const createAdminPlanGroup = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createPlanGroup(payload))
+export const createAdminRegion = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createRegion(payload))
+export const deleteAdminBillingCycle = (id: number | string) => unwrapAdmin(deleteBillingCycle(id))
+export const deleteAdminGoodsType = (id: number | string) => unwrapAdmin(deleteGoodsType(id))
+export const deleteAdminPackage = (id: number | string) => unwrapAdmin(deletePackage(id))
+export const deleteAdminPlanGroup = (id: number | string) => unwrapAdmin(deletePlanGroup(id))
+export const deleteAdminRegion = (id: number | string) => unwrapAdmin(deleteRegion(id))
+export const fetchAdminGoodsTypeCapabilities = (id: number | string) =>
+  unwrapAdmin(getGoodsTypeCapabilities(id))
+export const fetchAdminPluginInstanceConfig = (
+  category: string,
+  pluginId: string,
+  instanceId: string
+) => unwrapAdmin(getAdminPluginInstanceConfig(category, pluginId, instanceId))
+export const fetchAdminPluginInstanceConfigSchema = (
+  category: string,
+  pluginId: string,
+  instanceId: string
+) => unwrapAdmin(getAdminPluginInstanceConfigSchema(category, pluginId, instanceId))
+export const fetchAdminPlugins = () => unwrapAdmin(listAdminPlugins())
+export const syncAdminGoodsTypeAutomation = (id: number | string, mode?: string) =>
+  unwrapAdmin(syncGoodsTypeAutomation(id, mode))
+export const updateAdminBillingCycle = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateBillingCycle(id, payload))
+export const updateAdminGoodsType = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateGoodsType(id, payload))
+export const updateAdminGoodsTypeCapabilities = (
+  id: number | string,
+  payload: { resize_enabled?: boolean | null; refund_enabled?: boolean | null }
+) => unwrapAdmin(updateGoodsTypeCapabilities(id, payload))
+export const updateAdminPackage = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updatePackage(id, payload))
+export const updateAdminPlanGroup = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updatePlanGroup(id, payload))
+export const updateAdminRegion = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateRegion(id, payload))
+
+export const fetchAdminCouponGroups = () => unwrapAdmin(listCouponGroups())
+export const fetchAdminCoupons = (params?: Record<string, unknown>) =>
+  unwrapAdmin(listCoupons(params))
+export const createAdminCouponGroup = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createCouponGroup(payload))
+export const updateAdminCouponGroup = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateCouponGroup(id, payload))
+export const deleteAdminCouponGroup = (id: number | string) => unwrapAdmin(deleteCouponGroup(id))
+export const createAdminCoupon = (payload: Record<string, unknown>) =>
+  unwrapAdmin(createCoupon(payload))
+export const updateAdminCoupon = (id: number | string, payload: Record<string, unknown>) =>
+  unwrapAdmin(updateCoupon(id, payload))
+export const deleteAdminCoupon = (id: number | string) => unwrapAdmin(deleteCoupon(id))
+export const batchGenerateAdminCoupons = (payload: Record<string, unknown>) =>
+  unwrapAdmin(batchGenerateCoupons(payload))
