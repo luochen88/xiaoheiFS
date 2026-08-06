@@ -174,19 +174,15 @@
   defineOptions({ name: 'OrderReview' })
 
   interface OrderRecordLike extends Order {
-    ID?: unknown
     UserID?: unknown
     OrderNo?: unknown
     Source?: unknown
-    Status?: unknown
     CanReview?: unknown
-    TotalAmount?: unknown
     Currency?: unknown
     PendingReason?: unknown
     ApprovedBy?: unknown
     ApprovedAt?: unknown
     RejectedReason?: unknown
-    CreatedAt?: unknown
     UpdatedAt?: unknown
     can_review?: unknown
   }

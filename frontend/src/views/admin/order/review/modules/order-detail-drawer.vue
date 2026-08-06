@@ -200,12 +200,9 @@
 
   interface OrderLike extends Order {
     source?: unknown
-    ID?: unknown
     UserID?: unknown
     OrderNo?: unknown
     Source?: unknown
-    Status?: unknown
-    TotalAmount?: unknown
     Currency?: unknown
     PendingReason?: unknown
     ApprovedBy?: unknown
