@@ -553,18 +553,48 @@ go test ./internal/ 仅剩 2 个既有失败（与本次无关）
 | 2FA 门禁（不变量 #2） | 全新管理员访问任何管理接口 → `403 {"code":"admin_2fa_bind_required"}`，与 `http.ts` 拦截器匹配的形状一致 |
 | 超管权限 | `handlers_admin_accounts.go:236` 确认主管理员权限为 `["*"]`，`hasAuth` 通配修复针对的是真实场景 |
 
-## 15. 唯一未闭合的缺口：暗色模式目视走查
+## 15. 浏览器实测（2026-08-06）
 
-这台机器没有浏览器。Chromium 可以从 npmmirror 镜像下载，但缺 13 个系统运行时库
-（libnspr4 / libnss3 / libatk / libcups / libasound 等），装它们要动系统包，
-**已确认不做**。相关临时文件已清理。
+装了 Chromium（npmmirror 镜像 + apt 补 13 个运行时库），用 Playwright 对**真实后端 +
+生产构建产物**截图，亮暗各 8 页。
 
-目前对暗色模式的保证全部是静态的：
+### 抓到的第一个问题：整个应用白屏
 
-- 零硬编码颜色（邮件模板除外，见规范圣经 §16）
-- 前景/背景/边框成对使用语义变量
-- 构建产物里 144 处 `.dark` 覆盖
-- 「引用了但没定义」的 CSS 变量为 0
+**所有页面都不渲染**，控制台报 `Cannot access 'StorageKeyManager' before initialization`，
+`#app` 内容长度为 0。
 
-**建议**：在有浏览器的机器上过一遍亮/暗两套，重点看长表格、抽屉、弹窗、空态、
-禁用态和低对比度文字。
+而此时：`npm run build` ✅、`vue-tsc` 0 错误 ✅、`eslint` 0 ✅、`stylelint` 0 ✅、
+后端契约测试 ✅、SPA 返回 index.html 200 ✅ —— **没有任何一道门禁会执行这个包**。
+
+根因：`utils/storage/index.ts` 桶文件 `export * from './storage-key-manager'`，
+而 `storage-key-manager.ts` 又从同一个桶文件导入 `StorageConfig`，形成自环。
+`locales/index.ts` 在模块顶层 `new StorageKeyManager()`，撞上尚未初始化的类绑定。
+改成直接从 `./storage-config` 导入即可。这是 `utils/` 下唯一一个自引用桶文件的模块。
+
+### 第二、三个问题：登录页家族
+
+- 左侧品牌栏塌成顶部一条。`LoginLeftView` 用 `height: 100%`，而 `.auth-page`
+  只设了 `min-height`，百分比高度没有确定的父高度可解析（模板原版根元素是 `h-screen`）。
+  7 个认证页（用户端 4 个 + 管理端 3 个）全部受影响。
+- 这些页面还都带着 `art-full-height`，但该 class 依赖 `useAutoLayoutHeight` 运行时注入
+  的变量，独立认证页上根本不存在，声明被静默丢弃。
+- `systemInfo.name` 仍是 `'Art Design Pro'`，而它会渲染在**侧边栏、顶栏、水印、
+  认证顶栏、登录页品牌**五处——等于整个产品挂着模板厂商的名字。
+
+### 暗色模式：通过
+
+修完后逐页对比亮暗两套截图：布局一致、颜色正确反转、卡片深色表面配细边框、
+品牌色仍可辨、插画跟随主题适配，未见「深色文字配写死浅底」这类问题。
+
+> 截图里中文显示为方块是容器没装 CJK 字体（拉丁文正常），与应用无关。
+
+### 顺带定性的既有问题（非本次引入）
+
+`/api/v1/site/settings` 返回 400 `not supported`、`/api/v1/cms/blocks` 与
+`/api/v1/cms/posts` 返回 500。用**改造前的后端**跑同一个数据库，返回完全相同的错误，
+确认是既有行为，与本次改造无关。
+
+### 教训
+
+自动化门禁能证明「编译得过」，证明不了「跑得起来」。这次的白屏是循环导入导致的
+TDZ，只有真正在浏览器里执行打包产物才会暴露。**发布前必须至少加载一次构建产物。**
