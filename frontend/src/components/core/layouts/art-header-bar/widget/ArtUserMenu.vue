@@ -64,6 +64,7 @@
   import { useRouter } from 'vue-router'
   import { ElMessageBox } from 'element-plus'
   import { useUserStore } from '@/store/modules/user'
+  import { clearSession, currentSessionRealm, loginRouteFor } from '@/router/session'
   import { WEB_LINKS } from '@/utils/constants'
   import { mittBus } from '@/utils/sys'
 
@@ -116,7 +117,12 @@
         cancelButtonText: t('common.cancel'),
         customClass: 'login-out-dialog'
       }).then(() => {
-        userStore.logOut()
+        // 不能用模板的 userStore.logOut()：它只清 ADP 自己的 token 和菜单，
+        // 本项目真正的 token 在 stores/auth 与 stores/adminAuth 里，
+        // 而且它把跳转写死到了用户登录页。详见 router/session.ts。
+        const realm = currentSessionRealm(router.currentRoute.value.path)
+        clearSession(realm)
+        router.push(loginRouteFor(realm))
       })
     }, 200)
   }

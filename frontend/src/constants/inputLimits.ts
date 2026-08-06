@@ -28,4 +28,4 @@ export const INPUT_LIMITS = {
   CMS_SLUG: 160,
   PORT_MAPPING_NAME: 64,
   VPS_NAME: 128
-} as const;
+} as const
