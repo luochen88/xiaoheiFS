@@ -1,7 +1,7 @@
 <!-- 设置操作按钮 -->
 <template>
   <div
-    class="mt-10 flex gap-8 border-t border-[var(--default-border)] bg-[var(--art-bg-color)] pt-5"
+    class="mt-10 flex gap-8 border-t border-[var(--default-border)] bg-[var(--el-bg-color-overlay)] pt-5"
   >
     <ElButton type="primary" class="flex-1 !h-8" @click="handleCopyConfig">
       {{ $t('setting.actions.copyConfig') }}
