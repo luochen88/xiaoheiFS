@@ -29,7 +29,12 @@
  * @module utils/storage/storage-key-manager
  * @author Art Design Pro Team
  */
-import { StorageConfig } from '@/utils/storage'
+// 必须直接从 ./storage-config 引入，不能走 '@/utils/storage' 桶文件：
+// 桶文件 `export * from './storage-key-manager'`，本文件再引用桶文件就成了自环。
+// locales/index.ts 在模块顶层 `new StorageKeyManager()`，正好撞上尚未初始化的
+// 类绑定，抛 "Cannot access 'StorageKeyManager' before initialization" —— 整个
+// 应用挂载失败、白屏，而构建/类型检查/lint 全是绿的。
+import { StorageConfig } from './storage-config'
 
 /**
  * 存储键名管理器
