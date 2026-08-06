@@ -27,7 +27,7 @@ import { useInstallStore } from '@/stores/install'
 import { setWorktab } from '@/utils/navigation'
 import { setPageTitle } from '@/utils/router'
 import { loadingService } from '@/utils/ui'
-import { fetchAdminPath, getCachedAdminPath } from '@/services/adminPath'
+import { checkAdminPath, fetchAdminPath, getCachedAdminPath } from '@/services/adminPath'
 
 import { RoutesAlias } from '../routesAlias'
 import { resolveRealm, prefixRoutePaths, type Realm } from '../realm'
@@ -113,9 +113,42 @@ async function handleRouteGuard(
     case 'console':
       return handleConsoleRealm(to, next)
     case 'admin':
+      // 进管理域之前必须先向后端确认首段真的是 admin_path，理由见函数注释
+      if (!(await isRealAdminPath(to))) {
+        next({ name: 'Exception404', replace: true })
+        return
+      }
       return handleAdminRealm(to, next, router)
     default:
       return handlePublicRealm(to, next)
+  }
+}
+
+/**
+ * 向后端确认路径首段确实是配置的管理后台路径。
+ *
+ * 有两件事都依赖它：
+ *
+ * 1. **不泄露后台路径**：管理域的路由是 `/:adminPath/*` 通配，任何没匹配上的地址
+ *    （拼错的 URL、扫描器的探测）都会落进来。不校验的话守卫会把它重定向到
+ *    `/<真实后台路径>/login`，等于对着任何人把后台地址喊出来——而可配置后台路径
+ *    的全部意义就是隐蔽。校验不通过一律 404。
+ *
+ * 2. **全新浏览器能进后台**：本地没有缓存时 `getCachedAdminPath()` 只能返回默认值
+ *    `admin`，自定义过路径的站点会因此进不去。`checkAdminPath` 会问后端并写入缓存。
+ *
+ * 缓存命中时它自己会短路，不会每次导航都发请求。
+ */
+async function isRealAdminPath(to: RouteLocationNormalized): Promise<boolean> {
+  const segment = to.path.split('/')[1] || ''
+  if (!segment) return false
+
+  try {
+    const { isAdmin } = await checkAdminPath(segment)
+    return isAdmin
+  } catch {
+    // 后端不可达时不要把人挡在外面：退回本地缓存判断
+    return segment === getCachedAdminPath()
   }
 }
 
