@@ -1052,3 +1052,20 @@ Preserved: Dashboard(Console), System, Result, Exception, Auth pages, all of `sr
 28. **`ArtWatermark` is already global** via `config/modules/component.ts` and keyed off `settingStore.watermarkVisible` — don't mount a second one per page.
 29. **Node/pnpm floor:** `node >= 20.19.0`, `pnpm >= 8.8.0`. Build script is `vue-tsc --noEmit && vite build`, so type errors block the build.
 30. **`AppRouteRecord.component` is a string in route modules but a real import in `staticRoutes.ts`.** Mixing them up gives you either "组件未找到" (string in staticRoutes context) or a broken addRoute.
+---
+
+## 16. 硬编码颜色规则的唯一例外：邮件模板
+
+`views/admin/settings/email/index.vue` 里的 `defaultTemplates` 是**邮件正文的 HTML 字符串**，
+不是组件样式。邮件客户端会剥掉 `<style>` 标签、也不支持 CSS 自定义属性，
+所以那里**必须**用内联 style + 十六进制颜色。
+
+合规扫描时排除它：
+
+```bash
+grep -rniE '#[0-9a-f]{3,8}\b|rgba?\(' src/views src/components/business \
+  | grep -viE 'art-|el-|url\(|data:image' \
+  | grep -v 'views/admin/settings/email/index.vue'
+```
+
+**不要把这些颜色改成 CSS 变量**，改了邮件在客户端里就没样式了。
