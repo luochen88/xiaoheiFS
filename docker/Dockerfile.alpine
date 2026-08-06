@@ -1,6 +1,7 @@
 # Multi-stage build for Alpine-based image
 # Stage 1: Build frontend
-FROM node:20-alpine as frontend-builder
+# Vite 7 requires Node ^20.19.0 || >=22.12.0; node:20-* is a floating tag.
+FROM node:22-alpine as frontend-builder
 
 WORKDIR /app
 
