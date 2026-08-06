@@ -161,17 +161,11 @@
 
           @if $direction == 'up' {
             transform: translateY(30px) rotate($rotation);
-          }
-
- @else if $direction == 'down' {
+          } @else if $direction == 'down' {
             transform: translateY(-30px) rotate($rotation);
-          }
-
- @else if $direction == 'left' {
+          } @else if $direction == 'left' {
             transform: translateX(-30px) rotate($rotation);
-          }
-
- @else if $direction == 'right' {
+          } @else if $direction == 'right' {
             transform: translateX(30px) rotate($rotation);
           }
         }
@@ -181,9 +175,7 @@
 
           @if $direction == 'up' or $direction == 'down' {
             transform: translateY(0) rotate($rotation);
-          }
-
- @else {
+          } @else {
             transform: translateX(0) rotate($rotation);
           }
         }
