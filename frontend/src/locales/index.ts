@@ -99,18 +99,7 @@ const i18nOptions: I18nOptions = {
   legacy: false,
   globalInjection: true,
   fallbackLocale: LanguageEnum.ZH,
-  messages,
-  // 迁移期过渡措施（TODO: ADP 改造完成后删除，见 docs/frontend/adp-migration-plan.md §9）
-  //
-  // 老页面里有 35 处 `$t("nav.home") || "首页"` 的写法——它们依赖旧的假 i18n
-  // （`$t = () => ""`）永远返回空串，从而落到中文兜底。装上真 vue-i18n 后，
-  // 缺失的 key 默认会原样返回 "nav.home"，是个真值，中文兜底就失效了，
-  // 用户会看到 key 本身。这里让缺失的 key 返回空串，保持旧行为。
-  //
-  // 代价：新代码写错 key 时不会报错，只会显示空白。reviewer 需留意。
-  missingWarn: false,
-  fallbackWarn: false,
-  missing: () => ''
+  messages
 }
 
 /**
