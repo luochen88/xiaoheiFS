@@ -1,6 +1,6 @@
 # 前端全站 Art Design Pro 改造方案
 
-> 状态：待执行
+> 状态：**已完成**（2026-08-06）
 > 制定日期：2026-08-05
 > 唯一风格标准：[`docs/frontend/adp-conventions.md`](./adp-conventions.md)（下称**规范圣经**）
 > 执行方式：8 个 codex worker 并行改造 + 2 个 codex reviewer 审核 + Claude 负责地基/协调/合并
@@ -143,10 +143,10 @@ function resolveRealm(path: string): Realm | null
 | 阶段 | 负责人 | 内容 | 出口条件 | 状态 |
 |---|---|---|---|---|
 | **P0 地基** | Claude（串行） | §5.1 | `npm run build` + `npm run typecheck` 绿 | ✅ 完成 |
-| **P1 并行改造** | W1–W8（codex） | §5.2 | 各自 DoD 全绿 | 🔄 进行中 |
-| **P2 审核** | R1/R2（codex） | §6 | 无 blocker | 🔄 进行中 |
-| **P3 合并** | Claude | §8 | 全量 build 绿 | ⏳ 待开始 |
-| **P4 收尾** | Claude | §9 | 删 adminweb/antd、后端单目录、CI/文档/宪法 | 🔄 部分完成 |
+| **P1 并行改造** | W1–W8（codex） | §5.2 | 各自 DoD 全绿 | ✅ 完成 |
+| **P2 审核** | R1/R2（codex） | §6 | 无 blocker | ✅ 完成（8 份审核 + 8 轮返修）|
+| **P3 合并** | Claude | §8 | 全量 build 绿 | ✅ 完成（8/8 切片）|
+| **P4 收尾** | Claude | §9 | 删 adminweb/antd、后端单目录、CI/文档/宪法 | ✅ 完成 |
 
 ### P0 实际结果（与计划的偏差）
 
@@ -404,3 +404,61 @@ cd backend && go test ./...
 .adp-template/src/views/system/user/index.vue      # 列表页黄金样板
 .adp-template/src/views/examples/                  # 各组件用法 demo
 ```
+
+
+---
+
+## 12. 最终验收（2026-08-06）
+
+### 合并结果
+
+8 个切片全部合并进 `feat/adp-frontend`，每合一个都跑 build + typecheck，全绿。
+
+| 指标 | 结果 |
+|---|---|
+| 页面数 | 118 |
+| `src` 总行数 | 约 91,000 |
+| 残留 Ant Design 引用 | **0** |
+| 硬编码颜色 | **0** |
+| `!important` | **1**（模板自带的 `views/index/style.scss`） |
+| 缺 `defineOptions` | **0** |
+| `ArtTable` 页面用 `useTable` | 37 / 42（其余 5 个是抽屉/对话框/仪表盘里的嵌套小表，本就不需要分页拉取） |
+| `vue-tsc --noEmit` | **0 错误**（全量检查，不再排除任何业务目录） |
+| `go test ./internal/...` | 仅剩 2 个既有失败（与本次无关） |
+
+### 删除的代码
+
+| 项 | 规模 |
+|---|---|
+| `adminweb/` | 471 MB，约 9 万行 |
+| `frontend/src/{pages,layouts,styles}` + 旧组件 | 94 文件，约 5.5 万行 |
+| `ant-design-vue` / `@ant-design/icons-vue` | 依赖与引导代码 |
+| `static-admin/`、`src/lib/echarts.ts` | 旧产物与失效包装 |
+
+P4 收尾一次提交净删 **159,294 行**。
+
+### 端到端验证
+
+- 构建产物用 `vite preview` 起服务，`/`、`/products`、`/login`、`/cart`、
+  `/console/vps`、`/<动态 admin 路径>/dashboard` 全部 200，history 回落正常。
+- 产物 CSS：21 种 `--art-*` 变量定义 + 144 处 `.dark` 覆盖。
+- **「引用了但没定义」的 CSS 变量扫描**归零（只剩运行时注入的 `--art-full-height`）。
+  这个扫描抓出了两个上游模板的笔误——未定义的自定义属性会静默失效，比硬编码更难发现。
+- `npm ci` 用新 lock 通过；只用 Dockerfile 拷贝的文件清单能独立构建成功。
+
+### 这套流程真正拦下来的问题
+
+审核 + 返修拦下的**功能性回归**（不是样式问题）：
+
+1. 登录页被擅自加了强制拖拽验证（原页面没有，还把模板演示控件当安全措施用）
+2. VPS 升降配的后端字段兜底被「规范化」删掉，会导致选不到目标套餐
+3. CMS 快捷入口卡片丢失按 key 的默认值兜底，后台留空时链接点不动
+4. 站点设置被擅自改成必填，存量空值站点将无法保存任何设置
+5. 审计页把服务端筛选做成了单页前端过滤，翻页结果会前后不一致
+
+协调者修掉的**地基缺陷**：
+
+1. `meta.activePath` 未随动态 admin 路径改写 → 隐藏详情页丢失菜单高亮
+2. ADP 的 user store 从未被填充 → **所有 `v-auth` 按钮对所有管理员（含超管）恒隐藏**
+3. 商品目录接口未对游客开放 → 公开购物车的硬阻塞（用 `OptionalUser` 中间件解决，
+   直接放公开组会让已登录用户悄悄丢掉会员价）
