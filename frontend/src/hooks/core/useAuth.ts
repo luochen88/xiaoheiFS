@@ -61,6 +61,11 @@ export const useAuth = () => {
   const hasAuth = (auth: string): boolean => {
     // 前端模式
     if (isFrontendMode.value) {
+      // 后端用 '*' 表示超级管理员（handlers_admin_accounts.go），它是通配而不是
+      // 一个叫 "*" 的权限码。不在这里短路的话，超管反而会看不到任何按钮。
+      if (frontendAuthList.includes('*')) {
+        return true
+      }
       return frontendAuthList.includes(auth)
     }
 
