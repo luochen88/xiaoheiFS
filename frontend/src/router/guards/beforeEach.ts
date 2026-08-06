@@ -34,6 +34,7 @@ import { resolveRealm, prefixRoutePaths, type Realm } from '../realm'
 import { buildConsoleMenus } from '../menus/console'
 import { asyncRoutes } from '../routes/asyncRoutes'
 import { RouteRegistry, IframeRouteManager, RoutePermissionValidator } from '../core'
+import { useCommon } from '@/hooks/core/useCommon'
 
 let routeRegistry: RouteRegistry | null = null
 
@@ -283,6 +284,16 @@ async function handleAdminRealm(
     }
     await registerAdminRoutes(to, next, router, adminPath)
     return
+  }
+
+  // 后台根路径本身没有页面（它匹配的是 /:adminPath 通配路由，组件是 404），
+  // 登录后落在这里会看到"页面不存在"。跳到菜单第一项。
+  if (to.path === `/${adminPath}` || to.path === `/${adminPath}/`) {
+    const { homePath } = useCommon()
+    if (homePath.value && homePath.value !== to.path) {
+      next({ path: homePath.value, replace: true })
+      return
+    }
   }
 
   if (!checkAdminPermission(to, next)) return
