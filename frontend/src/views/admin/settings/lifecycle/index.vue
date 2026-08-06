@@ -19,6 +19,14 @@
       :gutter="20"
       label-position="top"
     />
+
+    <ElAlert
+      type="info"
+      :closable="false"
+      show-icon
+      title="生命周期规则说明"
+      description="开启后会在实例到期前发送提醒。例如 7 表示到期前 7 天发送提醒。开启后将自动回收实例。到期超过 N 天后，会由定时任务执行删除/回收（默认每天 03:00 执行）。允许用户在到期前窗口内触发紧急续费。0 表示不限制窗口（只要未到期都允许）。每次紧急续费会将到期时间延长 N 天。两次紧急续费之间的最小间隔时间（小时）。"
+    />
   </SettingsPage>
 </template>
 

@@ -12,7 +12,12 @@
               <ArtSvgIcon icon="ri:refresh-line" />
               刷新配置
             </ElButton>
-            <ElButton v-if="canUpdate" type="primary" :loading="configSaving" @click="saveConfig">
+            <ElButton
+              v-if="canUpdateSms"
+              type="primary"
+              :loading="configSaving"
+              @click="saveConfig"
+            >
               <ArtSvgIcon icon="ri:save-line" />
               保存配置
             </ElButton>
@@ -23,7 +28,7 @@
       <ArtForm
         v-model="configForm"
         :items="configItems"
-        :disabled="configLoading || configSaving || !canUpdate"
+        :disabled="configLoading || configSaving || !canUpdateSms"
         :show-reset="false"
         :show-submit="false"
         :span="8"
@@ -33,7 +38,7 @@
         <template #quick_test>
           <div class="inline-action">
             <ElInput v-model="quickTestPhone" placeholder="13800138000，支持逗号分隔" />
-            <ElButton type="primary" :disabled="!canUpdate" @click="quickTest">
+            <ElButton type="primary" :disabled="!canTestSms" @click="quickTest">
               <ArtSvgIcon icon="ri:send-plane-line" />
               发送测试
             </ElButton>
@@ -42,39 +47,17 @@
       </ArtForm>
     </ElCard>
 
-    <ArtSearchBar
-      v-show="showSearchBar"
-      v-model="searchForm"
-      :items="searchItems"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="resetSearchParams"
-    />
-
-    <ElCard class="templates-card">
-      <ArtTableHeader
-        v-model:columns="columnChecks"
-        v-model:show-search-bar="showSearchBar"
-        :loading="loading"
-        @refresh="refreshData"
-      >
+    <ElCard v-if="canViewTemplates" class="templates-card">
+      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
         <template #left>
-          <ElButton v-if="canUpdate" type="primary" @click="openTemplate()">
+          <ElButton v-if="canUpdateTemplates" type="primary" @click="openTemplate()">
             <ArtSvgIcon icon="ri:add-line" />
             新增模板
           </ElButton>
         </template>
       </ArtTableHeader>
 
-      <ArtTable
-        row-key="id"
-        :loading="loading"
-        :data="data"
-        :columns="columns"
-        :pagination="pagination"
-        @pagination:size-change="handleSizeChange"
-        @pagination:current-change="handleCurrentChange"
-      >
+      <ArtTable row-key="id" :loading="loading" :data="data" :columns="columns">
         <template #enabled="{ row }">
           <ElTag :type="row.enabled ? 'success' : 'info'">
             {{ row.enabled ? '启用' : '停用' }}
@@ -82,8 +65,10 @@
         </template>
         <template #operation="{ row }">
           <ElSpace>
-            <ElButton link type="primary" @click="openTemplate(row)">编辑</ElButton>
-            <ElButton v-if="canUpdate" link type="danger" @click="removeTemplate(row)">
+            <ElButton v-if="canUpdateTemplates" link type="primary" @click="openTemplate(row)">
+              编辑
+            </ElButton>
+            <ElButton v-if="canDeleteTemplates" link type="danger" @click="removeTemplate(row)">
               删除
             </ElButton>
           </ElSpace>
@@ -93,21 +78,29 @@
 
     <ElDialog v-model="templateVisible" title="短信模板" width="min(860px, 92vw)" destroy-on-close>
       <ArtForm
-        ref="templateFormRef"
         v-model="templateForm"
         :items="templateItems"
-        :rules="templateRules"
+        :disabled="!canUpdateTemplates"
         :show-reset="false"
         :show-submit="false"
         :span="12"
         label-position="top"
       >
+        <template #content>
+          <ElInput
+            v-model="templateForm.content"
+            type="textarea"
+            :rows="6"
+            placeholder="例如：您的验证码是 {{code}}，请勿泄露。"
+          />
+          <div v-pre class="field-help">支持变量：{{ code }} / {{ phone }} / {{ now }}</div>
+        </template>
         <template #preview_test>
           <div class="test-stack">
             <div class="inline-action">
               <ElInput v-model="previewPhone" placeholder="预览手机号" />
               <ElInput v-model="previewCode" placeholder="预览验证码" />
-              <ElButton @click="previewTemplate">生成预览</ElButton>
+              <ElButton :disabled="!canViewSms" @click="previewTemplate">生成预览</ElButton>
             </div>
             <pre v-if="previewContent" class="preview-block">{{ previewContent }}</pre>
           </div>
@@ -115,21 +108,29 @@
         <template #send_test>
           <div class="inline-action">
             <ElInput v-model="templateTestPhone" placeholder="测试手机号，支持逗号分隔" />
-            <ElButton type="primary" @click="testTemplate">发送测试</ElButton>
+            <ElButton type="primary" :disabled="!canTestSms" @click="testTemplate">
+              发送测试
+            </ElButton>
           </div>
         </template>
       </ArtForm>
 
       <template #footer>
         <ElButton @click="templateVisible = false">取消</ElButton>
-        <ElButton type="primary" :loading="templateSaving" @click="saveTemplate">保存模板</ElButton>
+        <ElButton
+          v-if="canUpdateTemplates"
+          type="primary"
+          :loading="templateSaving"
+          @click="saveTemplate"
+        >
+          保存模板
+        </ElButton>
       </template>
     </ElDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-  import type { FormRules } from 'element-plus'
   import {
     deleteSmsTemplate,
     getSmsConfig,
@@ -147,16 +148,6 @@
 
   defineOptions({ name: 'AdminSettingsSms' })
 
-  interface SearchForm {
-    keyword?: string
-    enabled?: boolean
-  }
-
-  interface TableParams extends SearchForm {
-    current: number
-    size: number
-  }
-
   interface SmsTemplateRow {
     id: number | null
     name: string
@@ -169,10 +160,6 @@
     name: string
     content: string
     enabled: boolean
-  }
-
-  interface ArtFormExpose {
-    validate: () => Promise<boolean> | undefined
   }
 
   const configForm = reactive({
@@ -188,18 +175,20 @@
   const configLoading = ref(false)
   const configSaving = ref(false)
   const quickTestPhone = ref('')
-  const showSearchBar = ref(true)
-  const searchForm = ref<SearchForm>({ keyword: '', enabled: undefined })
   const templateVisible = ref(false)
   const templateSaving = ref(false)
-  const templateFormRef = ref<ArtFormExpose>()
   const templateForm = reactive<TemplateForm>(createTemplateForm())
   const previewPhone = ref('13800138000')
   const previewCode = ref('123456')
   const previewContent = ref('')
   const templateTestPhone = ref('')
   const { hasPermission } = useAdminPermissions()
-  const canUpdate = hasPermission('settings.update', 'sms.update', 'sms_template.update')
+  const canViewSms = hasPermission('sms.view')
+  const canUpdateSms = hasPermission('sms.update')
+  const canTestSms = hasPermission('sms.test')
+  const canViewTemplates = hasPermission('sms_template.list')
+  const canUpdateTemplates = hasPermission('sms_template.update')
+  const canDeleteTemplates = hasPermission('sms_template.delete')
 
   const smsPluginOptions = computed(() =>
     plugins.value
@@ -246,62 +235,23 @@
     },
     { key: 'quick_test', label: '快速测试手机号', span: 16 }
   ])
-  const searchItems = computed(() => [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '名称或内容' }
-    },
-    {
-      key: 'enabled',
-      label: '状态',
-      type: 'select',
-      props: {
-        clearable: true,
-        options: [
-          { label: '启用', value: true },
-          { label: '停用', value: false }
-        ]
-      }
-    }
-  ])
   const templateItems = computed(() => [
-    { key: 'name', label: '名称', type: 'input', span: 16, props: { maxlength: 120 } },
+    { key: 'name', label: '名称', type: 'input', span: 16 },
     { key: 'enabled', label: '启用', type: 'switch', span: 8 },
     {
       key: 'content',
       label: '内容模板',
-      type: 'input',
-      span: 24,
-      props: {
-        type: 'textarea',
-        rows: 6,
-        placeholder: '例如：您的验证码是 {{code}}，请勿泄露。'
-      }
+      span: 24
     },
     { key: 'preview_test', label: '模板预览', span: 24 },
     { key: 'send_test', label: '测试发送', span: 24 }
   ])
-  const templateRules: FormRules<TemplateForm> = {
-    name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
-    content: [{ required: true, message: '请输入模板内容', trigger: 'blur' }]
-  }
-
-  const fetchTemplates = async (params: TableParams) => {
+  const fetchTemplates = async () => {
+    if (!canViewTemplates.value) return { records: [], total: 0 }
     const response = await listSmsTemplates()
-    const keyword = String(params.keyword ?? '')
-      .trim()
-      .toLowerCase()
-    let rows = (response.data?.items ?? []).map(normalizeTemplate)
+    const rows = (response.data?.items ?? []).map(normalizeTemplate)
     templateOptions.value = rows
-    if (keyword) {
-      rows = rows.filter((row) => `${row.name} ${row.content}`.toLowerCase().includes(keyword))
-    }
-    if (typeof params.enabled === 'boolean')
-      rows = rows.filter((row) => row.enabled === params.enabled)
-    const start = (params.current - 1) * params.size
-    return { records: rows.slice(start, start + params.size), total: rows.length }
+    return { records: rows, total: rows.length }
   }
 
   const {
@@ -309,12 +259,6 @@
     columnChecks,
     data,
     loading,
-    pagination,
-    getData,
-    searchParams,
-    resetSearchParams,
-    handleSizeChange,
-    handleCurrentChange,
     refreshData,
     refreshCreate,
     refreshUpdate,
@@ -322,7 +266,6 @@
   } = useTable({
     core: {
       apiFn: fetchTemplates,
-      apiParams: { current: 1, size: 20, ...searchForm.value },
       columnsFactory: () => [
         { prop: 'id', label: 'ID', width: 80 },
         { prop: 'name', label: '名称', minWidth: 180, showOverflowTooltip: true },
@@ -355,18 +298,17 @@
     configForm.instance_id = pluginId ? instanceId : ''
   }
 
-  function handleSearch(params: SearchForm): void {
-    Object.assign(searchParams, params)
-    getData()
-  }
-
   async function loadConfig(): Promise<void> {
+    if (!canViewSms.value) return
     configLoading.value = true
     try {
-      const [configResponse, pluginResponse] = await Promise.all([
-        getSmsConfig(),
-        listAdminPlugins()
-      ])
+      const configResponse = await getSmsConfig()
+      let pluginResponse: Awaited<ReturnType<typeof listAdminPlugins>> | undefined
+      try {
+        pluginResponse = await listAdminPlugins()
+      } catch {
+        pluginResponse = undefined
+      }
       const config = configResponse.data
       configForm.enabled = config?.enabled !== false
       configForm.plugin_id = String(config?.plugin_id ?? '')
@@ -376,13 +318,14 @@
         : ''
       configForm.default_template_id = String(config?.default_template_id ?? '')
       configForm.provider_template_id = String(config?.provider_template_id ?? '')
-      plugins.value = pluginResponse.data?.items ?? []
+      plugins.value = pluginResponse?.data?.items ?? []
     } finally {
       configLoading.value = false
     }
   }
 
   async function saveConfig(): Promise<void> {
+    if (!canUpdateSms.value) return
     configSaving.value = true
     try {
       await updateSmsConfig({
@@ -399,6 +342,7 @@
   }
 
   function openTemplate(row?: SmsTemplateRow): void {
+    if (!canUpdateTemplates.value) return
     Object.assign(templateForm, row ?? createTemplateForm())
     previewContent.value = ''
     templateTestPhone.value = ''
@@ -406,8 +350,7 @@
   }
 
   async function saveTemplate(): Promise<void> {
-    const valid = await templateFormRef.value?.validate()?.catch(() => false)
-    if (!valid) return
+    if (!canUpdateTemplates.value) return
     templateSaving.value = true
     try {
       const payload = {
@@ -418,7 +361,7 @@
       if (templateForm.id !== null) await updateSmsTemplate(templateForm.id, payload)
       else await upsertSmsTemplate(payload)
       templateVisible.value = false
-      ElMessage.success('短信模板已保存')
+      ElMessage.success('模板已保存')
       if (templateForm.id !== null) await refreshUpdate()
       else await refreshCreate()
     } finally {
@@ -427,14 +370,16 @@
   }
 
   async function removeTemplate(row: SmsTemplateRow): Promise<void> {
+    if (!canDeleteTemplates.value) return
     if (row.id === null) return
     await ElMessageBox.confirm('确认删除该短信模板吗？', '删除模板', { type: 'warning' })
     await deleteSmsTemplate(row.id)
-    ElMessage.success('短信模板已删除')
+    ElMessage.success('已删除')
     await refreshRemove()
   }
 
   async function previewTemplate(): Promise<void> {
+    if (!canViewSms.value) return
     if (!templateForm.content.trim()) {
       ElMessage.error('请输入模板内容')
       return
@@ -447,6 +392,7 @@
   }
 
   async function testTemplate(): Promise<void> {
+    if (!canTestSms.value) return
     const phone = templateTestPhone.value.trim()
     if (!phone) {
       ElMessage.error('请输入测试手机号')
@@ -463,12 +409,20 @@
       }
     }
     if (templateForm.id !== null) payload.template_id = templateForm.id
-    else payload.content = templateForm.content
+    else {
+      const content = templateForm.content.trim()
+      if (!content) {
+        ElMessage.error('请先填写模板内容或先保存模板')
+        return
+      }
+      payload.content = content
+    }
     await testSmsConfig(payload)
     ElMessage.success('测试短信已发送')
   }
 
   async function quickTest(): Promise<void> {
+    if (!canTestSms.value) return
     const phone = quickTestPhone.value.trim()
     if (!phone) {
       ElMessage.error('请输入测试手机号')
@@ -478,7 +432,7 @@
     const fallbackId = Number(templateOptions.value.find((item) => item.enabled)?.id) || 0
     const templateId = selectedId || fallbackId
     if (!templateId) {
-      ElMessage.error('请先选择默认模板或新增并启用一个模板')
+      ElMessage.error('请先在短信设置中选择默认模板，或先新增并启用一个模板')
       return
     }
     await testSmsConfig({
@@ -528,6 +482,12 @@
 
   .inline-action :is(.el-input) {
     flex: 1;
+  }
+
+  .field-help {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--art-gray-600);
   }
 
   .test-stack {

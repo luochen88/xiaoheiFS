@@ -1,15 +1,5 @@
 <template>
   <div class="art-full-height user-tier-page">
-    <ArtSearchBar
-      v-if="canView"
-      v-model="searchForm"
-      :items="searchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="handleReset"
-    />
-
     <ElCard v-loading="tableLoading" class="art-table-card">
       <template #header>
         <div class="page-header">
@@ -19,8 +9,10 @@
           </div>
 
           <div class="page-actions">
-            <ElButton v-if="canUpdate" @click="handleRebuildAll">重建全部缓存</ElButton>
-            <ElButton v-if="canUpdate" type="primary" @click="openCreateGroup">创建用户组</ElButton>
+            <ElButton v-auth="'user.update'" @click="handleRebuildAll">重建全部缓存</ElButton>
+            <ElButton v-auth="'user.create'" type="primary" @click="openCreateGroup"
+              >创建用户组</ElButton
+            >
           </div>
         </div>
       </template>
@@ -35,15 +27,7 @@
           @refresh="fetchGroups()"
         />
 
-        <ArtTable
-          :data="groups"
-          :columns="columns"
-          :pagination="pagination"
-          row-key="id"
-          @row-click="handleSelectGroup"
-          @pagination:size-change="handlePageSizeChange"
-          @pagination:current-change="handlePageCurrentChange"
-        >
+        <ArtTable :data="groups" :columns="columns" row-key="id" @row-click="handleSelectGroup">
           <template #name="{ row }">
             <div class="group-name">
               <span
@@ -77,7 +61,7 @@
                 >管理规则</ElButton
               >
               <ElButton
-                v-if="canUpdate"
+                v-auth="'user.update'"
                 text
                 type="primary"
                 @click.stop="openEditGroup(row as UserTierGroupRow)"
@@ -85,7 +69,7 @@
                 编辑
               </ElButton>
               <ElButton
-                v-if="canUpdate"
+                v-auth="'user.update'"
                 text
                 type="primary"
                 @click.stop="handleRebuildGroup(row as UserTierGroupRow)"
@@ -93,7 +77,7 @@
                 重建缓存
               </ElButton>
               <ElButton
-                v-if="canUpdate"
+                v-auth="'user.delete'"
                 text
                 type="danger"
                 :disabled="row.is_default"
@@ -130,6 +114,7 @@
           <ElTabPane label="优惠策略" name="discount">
             <div class="tab-toolbar">
               <ElButton
+                v-auth="'user.update'"
                 type="primary"
                 :disabled="isSelectedGroupReadonly"
                 @click="openCreateDiscountRule"
@@ -167,6 +152,7 @@
                 <template #default="{ row }">
                   <div class="table-actions">
                     <ElButton
+                      v-auth="'user.update'"
                       text
                       type="primary"
                       :disabled="isSelectedGroupReadonly"
@@ -175,6 +161,7 @@
                       编辑
                     </ElButton>
                     <ElButton
+                      v-auth="'user.update'"
                       text
                       type="danger"
                       :disabled="isSelectedGroupReadonly"
@@ -191,6 +178,7 @@
           <ElTabPane label="自动审批条件" name="auto">
             <div class="tab-toolbar">
               <ElButton
+                v-auth="'user.update'"
                 type="primary"
                 :disabled="isSelectedGroupReadonly"
                 @click="openCreateAutoRule"
@@ -211,6 +199,7 @@
                 <template #default="{ row }">
                   <div class="table-actions">
                     <ElButton
+                      v-auth="'user.update'"
                       text
                       type="primary"
                       :disabled="isSelectedGroupReadonly"
@@ -219,6 +208,7 @@
                       编辑
                     </ElButton>
                     <ElButton
+                      v-auth="'user.update'"
                       text
                       type="danger"
                       :disabled="isSelectedGroupReadonly"
@@ -276,6 +266,7 @@
     UserTierGroup
   } from '@/services/admin'
   import { useTable } from '@/hooks/core/useTable'
+  import { useAuth } from '@/hooks/core/useAuth'
   import {
     createUserTierAutoRule,
     createUserTierDiscountRule,
@@ -290,13 +281,11 @@
     fetchUserTierAutoRules,
     fetchUserTierDiscountRules,
     fetchUserTierGroups,
-    hasAdminPermission,
     rebuildUserTierCaches,
     updateUserTierAutoRule,
     updateUserTierDiscountRule,
     updateUserTierGroup
   } from '@/services/admin'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import AutoRuleDialog, { type UserTierAutoRuleFormValue } from './modules/auto-rule-dialog.vue'
   import DiscountRuleDialog, {
@@ -318,9 +307,7 @@
     updated_at: string
   }
 
-  interface UserTierTableParams extends Api.Common.CommonSearchParams {
-    keyword: string
-  }
+  type UserTierTableParams = Api.Common.CommonSearchParams
 
   interface UserTierDiscountRuleRow {
     id: number | null
@@ -346,8 +333,7 @@
     sort_order: number
   }
 
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
+  const { hasAuth } = useAuth()
 
   const loading = reactive({
     rules: false,
@@ -370,31 +356,16 @@
   const activeTab = ref('discount')
   const selectedGroupId = ref<number | null>(null)
   const preferredGroupId = ref<number | null>(null)
-  const searchForm = ref({ keyword: '' })
-  const searchItems = [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '搜索用户组名称或图标' }
-    }
-  ]
-
   const {
     columnChecks,
     columns,
     data: groups,
     loading: tableLoading,
-    pagination,
-    searchParams,
-    getData,
-    resetSearchParams,
-    handleSizeChange: handlePageSizeChange,
-    handleCurrentChange: handlePageCurrentChange
+    getData
   } = useTable({
     core: {
       apiFn: fetchGroupTable,
-      apiParams: { current: 1, size: 20, keyword: '' },
+      apiParams: { current: 1, size: 20 },
       immediate: false,
       columnsFactory: () => [
         { prop: 'name', label: '名称', minWidth: 180, useSlot: true },
@@ -452,10 +423,7 @@
     addon_config: '附加项配置'
   }
 
-  const canView = computed(() => hasAdminPermission(info.value?.permissions, ['user.list']))
-  const canUpdate = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['user.update', 'user.create'])
-  )
+  const canView = computed(() => hasAuth('user.list'))
 
   const selectedGroup = computed(
     () =>
@@ -464,7 +432,7 @@
   )
 
   const isSelectedGroupReadonly = computed(
-    () => !canUpdate.value || Boolean(selectedGroup.value?.is_default)
+    () => !hasAuth('user.update') || Boolean(selectedGroup.value?.is_default)
   )
 
   const goodsTypeNameMap = computed(() => {
@@ -558,47 +526,52 @@
   }
 
   function normalizeGroup(item?: UserTierGroup): UserTierGroupRow {
+    const source = (item || {}) as UserTierGroup & Record<string, unknown>
     return {
-      id: normalizeNullableNumber(item?.id),
-      name: String(item?.name || ''),
-      color: String(item?.color || ''),
-      icon: String(item?.icon || 'badge'),
-      priority: Number(item?.priority || 0),
-      auto_approve_enabled: Boolean(item?.auto_approve_enabled),
-      is_default: Boolean(item?.is_default),
-      created_at: String(item?.created_at || ''),
-      updated_at: String(item?.updated_at || '')
+      id: normalizeNullableNumber(source.id ?? source.ID),
+      name: String(source.name ?? source.Name ?? ''),
+      color: String(source.color ?? source.Color ?? ''),
+      icon: String(source.icon ?? source.Icon ?? 'badge'),
+      priority: Number(source.priority ?? source.Priority ?? 0),
+      auto_approve_enabled: Boolean(source.auto_approve_enabled ?? source.AutoApproveEnabled),
+      is_default: Boolean(source.is_default ?? source.IsDefault),
+      created_at: String(source.created_at ?? source.CreatedAt ?? ''),
+      updated_at: String(source.updated_at ?? source.UpdatedAt ?? '')
     }
   }
 
   function normalizeDiscountRule(item?: UserTierDiscountRule): UserTierDiscountRuleRow {
+    const source = (item || {}) as UserTierDiscountRule & Record<string, unknown>
     return {
-      id: normalizeNullableNumber(item?.id),
-      group_id: normalizeNullableNumber(item?.group_id),
-      scope: normalizeScope(item?.scope),
-      goods_type_id: Number(item?.goods_type_id || 0),
-      region_id: Number(item?.region_id || 0),
-      plan_group_id: Number(item?.plan_group_id || 0),
-      package_id: Number(item?.package_id || 0),
-      discount_permille: Number(item?.discount_permille || 0),
+      id: normalizeNullableNumber(source.id ?? source.ID),
+      group_id: normalizeNullableNumber(source.group_id ?? source.GroupID),
+      scope: normalizeScope(String(source.scope ?? source.Scope ?? 'all')),
+      goods_type_id: Number(source.goods_type_id ?? source.GoodsTypeID ?? 0),
+      region_id: Number(source.region_id ?? source.RegionID ?? 0),
+      plan_group_id: Number(source.plan_group_id ?? source.PlanGroupID ?? 0),
+      package_id: Number(source.package_id ?? source.PackageID ?? 0),
+      discount_permille: Number(source.discount_permille ?? source.DiscountPermille ?? 0),
       fixed_price:
-        item?.fixed_price === null || item?.fixed_price === undefined
-          ? null
-          : Number(item.fixed_price),
-      add_core_permille: Number(item?.add_core_permille || 0),
-      add_mem_permille: Number(item?.add_mem_permille || 0),
-      add_disk_permille: Number(item?.add_disk_permille || 0),
-      add_bw_permille: Number(item?.add_bw_permille || 0)
+        source.fixed_price === null || source.fixed_price === undefined
+          ? source.FixedPrice === null || source.FixedPrice === undefined
+            ? null
+            : Number(source.FixedPrice)
+          : Number(source.fixed_price),
+      add_core_permille: Number(source.add_core_permille ?? source.AddCorePermille ?? 0),
+      add_mem_permille: Number(source.add_mem_permille ?? source.AddMemPermille ?? 0),
+      add_disk_permille: Number(source.add_disk_permille ?? source.AddDiskPermille ?? 0),
+      add_bw_permille: Number(source.add_bw_permille ?? source.AddBwPermille ?? 0)
     }
   }
 
   function normalizeAutoRule(item?: UserTierAutoRule): UserTierAutoRuleRow {
+    const source = (item || {}) as UserTierAutoRule & Record<string, unknown>
     return {
-      id: normalizeNullableNumber(item?.id),
-      group_id: normalizeNullableNumber(item?.group_id),
-      duration_days: Number(item?.duration_days ?? -1),
-      conditions_json: String(item?.conditions_json || '[]'),
-      sort_order: Number(item?.sort_order || 0)
+      id: normalizeNullableNumber(source.id ?? source.ID),
+      group_id: normalizeNullableNumber(source.group_id ?? source.GroupID),
+      duration_days: Number(source.duration_days ?? source.DurationDays ?? -1),
+      conditions_json: String(source.conditions_json ?? source.ConditionsJSON ?? '[]'),
+      sort_order: Number(source.sort_order ?? source.SortOrder ?? 0)
     }
   }
 
@@ -610,10 +583,43 @@
         [fetchAdminGoodsTypes(), fetchAdminRegions(), fetchAdminPlanGroups(), fetchAdminPackages()]
       )
 
-      goodsTypes.value = goodsTypePayload.items || []
-      regions.value = regionPayload.items || []
-      planGroups.value = planGroupPayload.items || []
-      packages.value = packagePayload.items || []
+      goodsTypes.value = (goodsTypePayload.items || []).map((item) => {
+        const source = item as CatalogGoodsType
+        return {
+          ...source,
+          id: source.id ?? source.ID,
+          name: source.name ?? source.Name
+        }
+      })
+      regions.value = (regionPayload.items || []).map((item) => {
+        const source = item as CatalogRegion
+        return {
+          ...source,
+          id: source.id ?? source.ID,
+          name: source.name ?? source.Name,
+          goods_type_id: source.goods_type_id ?? source.GoodsTypeID
+        }
+      })
+      planGroups.value = (planGroupPayload.items || []).map((item) => {
+        const source = item as CatalogPlanGroup
+        return {
+          ...source,
+          id: source.id ?? source.ID,
+          name: source.name ?? source.Name,
+          goods_type_id: source.goods_type_id ?? source.GoodsTypeID,
+          region_id: source.region_id ?? source.RegionID
+        }
+      })
+      packages.value = (packagePayload.items || []).map((item) => {
+        const source = item as CatalogPackage & { GoodsTypeID?: number }
+        return {
+          ...source,
+          id: source.id ?? source.ID,
+          name: source.name ?? source.Name,
+          goods_type_id: source.goods_type_id ?? source.GoodsTypeID,
+          plan_group_id: source.plan_group_id ?? source.PlanGroupID
+        }
+      })
     } finally {
       loading.lookups = false
     }
@@ -632,47 +638,25 @@
     }
 
     const payload = await fetchUserTierGroups()
-    const keyword = String(params.keyword || '')
-      .trim()
-      .toLowerCase()
-    const records = (payload.items || [])
-      .map((item) => normalizeGroup(item))
-      .filter(
-        (item) =>
-          !keyword ||
-          [item.name, item.icon].some((value) => String(value).toLowerCase().includes(keyword))
-      )
-    const start = (params.current - 1) * params.size
-    const pageRecords = records.slice(start, start + params.size)
+    const records = (payload.items || []).map((item) => normalizeGroup(item))
 
-    if (!pageRecords.length) {
+    if (!records.length) {
       selectedGroupId.value = null
       discountRules.value = []
       autoRules.value = []
     } else {
       const preferred = preferredGroupId.value ?? selectedGroupId.value
       const selected =
-        pageRecords.find((item) => Number(item.id || 0) === Number(preferred || 0)) ||
-        pageRecords[0]
+        records.find((item) => Number(item.id || 0) === Number(preferred || 0)) || records[0]
       await handleSelectGroup(selected)
     }
 
     return {
-      records: pageRecords,
-      current: params.current,
-      size: params.size,
+      records,
+      current: 1,
+      size: records.length,
       total: records.length
     }
-  }
-
-  async function handleSearch(params: { keyword: string }) {
-    Object.assign(searchParams, params)
-    await getData()
-  }
-
-  async function handleReset() {
-    searchForm.value = { keyword: '' }
-    await resetSearchParams()
   }
 
   async function fetchRules() {

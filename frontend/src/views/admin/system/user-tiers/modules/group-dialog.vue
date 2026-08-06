@@ -6,9 +6,9 @@
     destroy-on-close
     align-center
   >
-    <ElForm ref="formRef" :model="localForm" :rules="rules" label-position="top">
+    <ElForm :model="localForm" label-position="top">
       <ElFormItem label="名称" prop="name">
-        <ElInput v-model="localForm.name" maxlength="120" placeholder="请输入用户组名称" />
+        <ElInput v-model="localForm.name" placeholder="请输入用户组名称" />
       </ElFormItem>
 
       <ElFormItem label="颜色" prop="color">
@@ -30,7 +30,7 @@
       </ElFormItem>
 
       <ElFormItem label="优先级" prop="priority">
-        <ElInputNumber v-model="localForm.priority" :min="1" :max="999" class="full-width" />
+        <ElInputNumber v-model="localForm.priority" class="full-width" />
       </ElFormItem>
 
       <ElFormItem label="自动审批开关" prop="auto_approve_enabled">
@@ -48,8 +48,6 @@
 </template>
 
 <script setup lang="ts">
-  import type { FormInstance, FormRules } from 'element-plus'
-
   defineOptions({ name: 'UserTierGroupDialog' })
 
   export interface UserTierGroupFormValue {
@@ -91,8 +89,6 @@
   })
   const emit = defineEmits<Emits>()
 
-  const formRef = ref<FormInstance>()
-
   const dialogVisible = computed({
     get: () => props.visible,
     set: (value) => emit('update:visible', value)
@@ -102,11 +98,6 @@
 
   const localForm = reactive<UserTierGroupFormValue>(createDefaultForm())
 
-  const rules = computed<FormRules>(() => ({
-    name: [{ required: true, message: '请输入用户组名称', trigger: 'blur' }],
-    priority: [{ required: true, message: '请输入优先级', trigger: 'change' }]
-  }))
-
   watch(
     () => props.visible,
     (visible) => {
@@ -115,7 +106,6 @@
       }
 
       Object.assign(localForm, createDefaultForm(), props.formData)
-      nextTick(() => formRef.value?.clearValidate())
     },
     { immediate: true }
   )
@@ -132,16 +122,7 @@
     }
   }
 
-  async function handleSubmit() {
-    if (!formRef.value) {
-      return
-    }
-
-    const valid = await formRef.value.validate().catch(() => false)
-    if (!valid) {
-      return
-    }
-
+  function handleSubmit() {
     emit('submit', {
       ...localForm,
       name: localForm.name.trim(),

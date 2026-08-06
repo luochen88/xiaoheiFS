@@ -20,6 +20,17 @@ module.exports = {
   ],
   // 自定义规则
   rules: {
+    // `@else` 必须紧跟在 `}` 后面（`} @else if ... {`），不能被空行隔开。
+    // 默认规则会强制在 at-rule 前插空行，而 prettier 又要求 `} @else` 同行，
+    // 两者互相 --fix 会来回推翻。这里豁免 else / elseif。
+    'at-rule-empty-line-before': [
+      'always',
+      {
+        except: ['blockless-after-same-name-blockless', 'first-nested'],
+        ignore: ['after-comment'],
+        ignoreAtRules: ['else', 'elseif']
+      }
+    ],
     'import-notation': 'string', // 指定导入CSS文件的方式("string"|"url")
     'selector-class-pattern': null, // 选择器类名命名规则
     'custom-property-pattern': null, // 自定义属性命名规则

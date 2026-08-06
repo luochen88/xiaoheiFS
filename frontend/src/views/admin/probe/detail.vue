@@ -23,6 +23,7 @@
 
         <div class="header-actions">
           <ElTag type="info" effect="plain">自动刷新 5s</ElTag>
+          <span class="last-refresh">上次刷新：{{ formatDateTime(lastRefreshAt) }}</span>
           <ElButton type="primary" :loading="refreshing" @click="refreshAll(true)">
             手动刷新
           </ElButton>
@@ -188,7 +189,7 @@
             <ElSwitch v-model="autoScroll" active-text="自动滚动" inactive-text="手动滚动" />
 
             <ElButton type="primary" :loading="logLoading" @click="startLog">
-              {{ logRunning ? '重新连接' : '开始日志' }}
+              {{ logRunning ? '重新开始' : '开始' }}
             </ElButton>
             <ElButton :disabled="!logRunning" @click="stopLog">停止</ElButton>
             <ElButton @click="clearLog">清空</ElButton>
@@ -205,7 +206,7 @@
               </div>
             </template>
 
-            <div v-else class="log-placeholder">暂无日志输出，点击“开始日志”后会在这里展示。</div>
+            <div v-else class="log-placeholder">暂无日志输出，点击"开始"按钮获取日志</div>
           </div>
         </div>
       </div>
@@ -240,25 +241,6 @@
             </ElDescriptionsItem>
           </ElDescriptions>
         </div>
-
-        <div class="art-card panel-card">
-          <div class="panel-title">状态事件</div>
-
-          <div v-if="statusEvents.length" class="event-list">
-            <div v-for="item in statusEvents" :key="item.id || item.created_at" class="event-item">
-              <ElTag :type="getStatusTagType(item.status)">
-                {{ getStatusText(item.status) }}
-              </ElTag>
-
-              <div class="event-meta">
-                <div class="event-time">{{ formatDateTime(item.at || item.created_at) }}</div>
-                <div class="event-reason">{{ item.reason || '系统状态变更' }}</div>
-              </div>
-            </div>
-          </div>
-
-          <ElEmpty v-else description="暂无状态事件" />
-        </div>
       </div>
     </div>
   </div>
@@ -268,8 +250,7 @@
   import type {
     ProbeNode as ProbeRecord,
     ProbeSLA as ProbeSlaRecord,
-    ProbeSnapshot as ProbeSnapshotRecord,
-    ProbeStatusEvent as ProbeStatusEventRecord
+    ProbeSnapshot as ProbeSnapshotRecord
   } from '@/services/types'
   import type { SseMessage } from '@/services/sse'
   import {
@@ -298,6 +279,8 @@
 
   const loading = ref(true)
   const refreshing = ref(false)
+  const lastRefreshAt = ref('')
+  const refreshError = ref('')
   const logLoading = ref(false)
   const logRunning = ref(false)
   const autoScroll = ref(true)
@@ -315,13 +298,13 @@
   })
 
   const sourceOptions = [
-    { label: '默认日志', value: '' },
+    { label: '文件日志（按系统设置）', value: '' },
     { label: 'Linux Journal(system)', value: 'journal:system' },
     { label: 'Linux Journal(pveproxy)', value: 'journal:pveproxy' },
-    { label: 'Windows System 关键日志', value: 'eventlog:System:important' },
-    { label: 'Windows System 全量日志', value: 'eventlog:System:full' },
-    { label: 'Windows 开关机日志', value: 'eventlog:System:power' },
-    { label: 'Windows Application 关键日志', value: 'eventlog:Application:important' },
+    { label: 'Windows 系统关键日志', value: 'eventlog:System:important' },
+    { label: 'Windows 系统全部日志', value: 'eventlog:System:full' },
+    { label: 'Windows 开关机/崩溃', value: 'eventlog:System:power' },
+    { label: 'Windows 应用关键日志', value: 'eventlog:Application:important' },
     { label: 'Windows Hyper-V 关键日志', value: 'eventlog:Hyper-V-Worker:important' }
   ]
 
@@ -333,7 +316,6 @@
   const portRows = computed<SnapshotRow[]>(() =>
     Array.isArray(snapshot.value?.ports) ? snapshot.value?.ports : []
   )
-  const statusEvents = computed<ProbeStatusEventRecord[]>(() => sla.value?.events || [])
 
   let poller: number | null = null
   let logConnection: ReturnType<typeof createSseConnection> | null = null
@@ -491,20 +473,7 @@
       uptime_percent: 'UptimePercent',
       events: 'Events'
     })
-    const events = Array.isArray(source.events)
-      ? source.events.map(
-          (item) =>
-            normalizeFields(item, {
-              id: 'ID',
-              probe_id: 'ProbeID',
-              status: 'Status',
-              at: 'At',
-              reason: 'Reason',
-              created_at: 'CreatedAt'
-            }) as ProbeStatusEventRecord
-        )
-      : []
-    return { ...(source as ProbeSlaRecord), events }
+    return source as ProbeSlaRecord
   }
 
   async function fetchData(silent = false, forceSnapshot = false) {
@@ -530,16 +499,19 @@
 
       probe.value = detailPayload.probe ? normalizeProbe(detailPayload.probe) : null
       sla.value = slaPayload.sla ? normalizeSla(slaPayload.sla) : null
+      lastRefreshAt.value = new Date().toISOString()
+      refreshError.value = ''
 
       if (forceSnapshot && detailPayload.online === false) {
-        ElMessage.warning('探针当前离线，无法触发新的实时快照')
+        ElMessage.warning('探针离线，手动刷新无法触发新快照')
       }
     } catch (error: any) {
+      refreshError.value = String(error?.message || '请求失败')
       if (error?.code === 404 || error?.response?.status === 404) {
         ElMessage.error('探针不存在或已被删除')
         router.push({ name: 'ProbeList' })
       } else if (!silent) {
-        ElMessage.error(error?.message || '加载探针详情失败')
+        ElMessage.error(`刷新失败: ${refreshError.value}`)
       }
     } finally {
       loading.value = false
@@ -832,7 +804,7 @@
           void handleSseMessage(message)
         },
         onError: () => {
-          void appendSystemLog('日志连接中断，正在自动重试...')
+          void appendSystemLog('日志连接中断，请重新连接')
         }
       })
 
@@ -904,6 +876,12 @@
     align-items: flex-start;
   }
 
+  .last-refresh {
+    align-self: center;
+    font-size: 13px;
+    color: var(--el-text-color-secondary);
+  }
+
   .title-section h1 {
     margin: 0;
     font-size: 26px;
@@ -937,9 +915,7 @@
   .metric-label,
   .metric-subtle,
   .panel-subtle,
-  .usage-meta,
-  .event-time,
-  .event-reason {
+  .usage-meta {
     font-size: 13px;
     color: var(--el-text-color-secondary);
   }
@@ -1023,29 +999,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-  }
-
-  .event-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .event-item {
-    display: flex;
-    gap: 12px;
-    padding: 12px;
-    background: var(--el-fill-color-light);
-    border-radius: 8px;
-  }
-
-  .event-meta {
-    min-width: 0;
-  }
-
-  .event-reason {
-    margin-top: 4px;
-    word-break: break-word;
   }
 
   .log-controls {

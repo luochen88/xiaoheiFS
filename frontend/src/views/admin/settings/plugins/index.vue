@@ -85,7 +85,10 @@
             </ElTag>
             <ElTag v-if="row.manifest?.capabilities?.sms" type="success">sms</ElTag>
             <ElTag v-if="row.manifest?.capabilities?.kyc" type="warning">kyc</ElTag>
-            <ElTag v-if="row.manifest?.capabilities?.automation" type="info">automation</ElTag>
+            <ElTag v-if="row.manifest?.capabilities?.automation" type="info">
+              automation:
+              {{ row.manifest.capabilities.automation.features?.length || 0 }} features
+            </ElTag>
             <ElButton link type="primary" @click="openManifest(row)">详情</ElButton>
           </ElSpace>
         </template>
@@ -143,7 +146,7 @@
         type="info"
         :closable="false"
         show-icon
-        title="以下目录已存在于服务端 plugins 目录，但尚未导入数据库。"
+        title="这些插件目录已存在于服务端 ./plugins 下，但尚未导入数据库。"
       />
       <ArtTable
         row-key="row_key"
@@ -161,9 +164,13 @@
           <ElTag :type="row.entry?.entry_supported ? 'success' : 'danger'">
             {{ row.entry?.platform || '-' }}
           </ElTag>
+          <div v-if="!row.entry?.entry_supported" class="secondary-text">
+            支持：{{ row.entry?.supported_platforms?.join(', ') || '-' }}
+          </div>
         </template>
         <template #operation="{ row }">
           <ElButton
+            v-if="canUpload"
             link
             type="primary"
             :loading="importBusyKey === row.row_key"
@@ -231,7 +238,7 @@
         show-icon
         :title="schemaError"
       />
-      <div v-loading="schemaLoading">
+      <div v-loading="schemaLoading" :class="{ 'schema-readonly': !canUpdate }">
         <JsonSchemaForm
           v-if="schema"
           v-model="configModel"
@@ -246,7 +253,9 @@
       </div>
       <template #footer>
         <ElButton @click="configVisible = false">取消</ElButton>
-        <ElButton type="primary" :loading="configSaving" @click="saveConfig">保存配置</ElButton>
+        <ElButton v-if="canUpdate" type="primary" :loading="configSaving" @click="saveConfig">
+          保存配置
+        </ElButton>
       </template>
     </ElDialog>
 
@@ -373,7 +382,7 @@
   const methodItems = ref<PluginPaymentMethodItem[]>([])
   const { hasPermission } = useAdminPermissions()
   const canView = hasPermission('plugin.list')
-  const canViewConfig = hasPermission('plugin.view', 'plugin.update')
+  const canViewConfig = hasPermission('plugin.view')
   const canCreate = hasPermission('plugin.create')
   const canUpdate = hasPermission('plugin.update')
   const canDelete = hasPermission('plugin.delete')
@@ -588,6 +597,7 @@
   }
 
   async function startImport(row: DiscoverRow): Promise<void> {
+    if (!canUpload.value) return
     if (row.signature_status !== 'official') {
       importTarget.value = row
       importPasswordForm.password = ''
@@ -598,6 +608,7 @@
   }
 
   async function confirmImport(): Promise<void> {
+    if (!canUpload.value) return
     if (!importTarget.value || !importPasswordForm.password.trim()) {
       ElMessage.error('请输入管理员密码')
       return
@@ -606,6 +617,7 @@
   }
 
   async function importPlugin(row: DiscoverRow, password?: string): Promise<void> {
+    if (!canUpload.value) return
     importBusyKey.value = row.row_key
     importing.value = true
     try {
@@ -692,7 +704,7 @@
   }
 
   async function saveConfig(): Promise<void> {
-    if (!current.value) return
+    if (!canUpdate.value || !current.value) return
     configSaving.value = true
     try {
       await updateAdminPluginInstanceConfig(
@@ -792,5 +804,9 @@
 
   .manifest-json {
     margin-top: 16px;
+  }
+
+  .schema-readonly {
+    pointer-events: none;
   }
 </style>

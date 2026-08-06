@@ -24,7 +24,7 @@
       <ElRow :gutter="12">
         <ElCol :span="12">
           <ElFormItem label="线路名称">
-            <ElInput v-model.trim="localForm.name" maxlength="120" placeholder="请输入名称" />
+            <ElInput v-model.trim="localForm.name" placeholder="请输入名称" />
           </ElFormItem>
         </ElCol>
         <ElCol :span="12">

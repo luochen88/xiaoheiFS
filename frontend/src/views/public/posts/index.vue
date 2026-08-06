@@ -1,139 +1,191 @@
 <template>
   <div class="posts-page pb-5">
-    <section class="posts-hero">
-      <div>
-        <ElBreadcrumb separator="/">
-          <ElBreadcrumbItem :to="{ path: '/' }">首页</ElBreadcrumbItem>
-          <ElBreadcrumbItem>{{ categoryTitle }}</ElBreadcrumbItem>
-        </ElBreadcrumb>
-        <h1>{{ heroTitle }}</h1>
-        <p>{{ heroSubtitle }}</p>
-      </div>
-      <div class="posts-hero__visual" aria-hidden="true">
-        <ArtSvgIcon :icon="categoryIcon" />
-        <span>{{ pagination.total }}</span>
-        <small>篇公开内容</small>
-      </div>
-    </section>
+    <template v-for="block in resolvedBlocks" :key="block.type">
+      <section v-if="block.type === 'hero'" class="posts-hero">
+        <div>
+          <ElBreadcrumb separator="/">
+            <ElBreadcrumbItem :to="{ path: '/' }">首页</ElBreadcrumbItem>
+            <ElBreadcrumbItem>{{ categoryTitle }}</ElBreadcrumbItem>
+          </ElBreadcrumb>
+          <h1>{{ heroTitle }}</h1>
+          <p>{{ heroSubtitle }}</p>
+        </div>
+        <div class="posts-hero__visual" aria-hidden="true">
+          <ArtSvgIcon :icon="categoryIcon" />
+          <span>{{ pagination.total }}</span>
+          <small>篇公开内容</small>
+        </div>
+      </section>
 
-    <nav class="posts-categories" aria-label="内容分类">
-      <ElButton
-        v-for="category in categories"
-        :key="category.key"
-        class="posts-categories__item"
-        :type="currentCategory === category.key ? 'primary' : 'default'"
-        :plain="currentCategory !== category.key"
-        @click="switchCategory(category.key)"
-      >
-        <ArtSvgIcon :icon="category.icon" />
-        <span>{{ category.name }}</span>
-        <ElTag size="small" effect="plain" round>{{ category.count }}</ElTag>
-      </ElButton>
-    </nav>
+      <template v-else-if="block.type === 'posts'">
+        <nav class="posts-categories" aria-label="内容分类">
+          <ElButton
+            v-for="category in categories"
+            :key="category.key"
+            class="posts-categories__item"
+            :type="currentCategory === category.key ? 'primary' : 'default'"
+            :plain="currentCategory !== category.key"
+            @click="switchCategory(category.key)"
+          >
+            <ArtSvgIcon :icon="category.icon" />
+            <span>{{ category.name }}</span>
+            <ElTag size="small" effect="plain" round>{{ category.count }}</ElTag>
+          </ElButton>
+        </nav>
 
-    <RouterLink
-      v-if="featuredPost && !searchForm.keyword"
-      :to="postPath(featuredPost)"
-      class="posts-featured"
-    >
-      <img
-        v-if="featuredPost.cover_url"
-        :src="featuredPost.cover_url"
-        :alt="featuredPost.title || ''"
-      />
-      <div v-else class="posts-featured__placeholder"><ArtSvgIcon icon="ri:article-line" /></div>
-      <div class="posts-featured__content">
-        <span><ArtSvgIcon icon="ri:pushpin-2-line" />精选推荐</span>
-        <h2>{{ featuredPost.title }}</h2>
-        <p>{{ featuredPost.summary || '查看内容详情' }}</p>
-        <small
-          >{{ formatDate(featuredPost.published_at) }} ·
-          {{ estimatedReadTime(featuredPost.content_html || featuredPost.summary || '') }}</small
+        <RouterLink
+          v-if="featuredPost && !searchForm.keyword"
+          :to="postPath(featuredPost)"
+          class="posts-featured"
         >
-      </div>
-    </RouterLink>
-
-    <div class="posts-search">
-      <ArtSearchBar
-        v-model="searchForm"
-        :items="searchItems"
-        :is-expand="true"
-        :show-expand="false"
-        @search="handleSearch"
-        @reset="handleReset"
-      />
-    </div>
-
-    <ElCard class="art-table-card posts-table-card">
-      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
-        <template #left>
-          <div class="posts-table-title">
-            <strong>{{ categoryTitle }}</strong>
-            <span>共 {{ pagination.total }} 篇</span>
-          </div>
-        </template>
-      </ArtTableHeader>
-
-      <ArtTable
-        row-key="slug"
-        :loading="loading"
-        :data="tableData"
-        :columns="columns"
-        :pagination="pagination"
-        @row-click="handleRowClick"
-        @pagination:size-change="handleSizeChange"
-        @pagination:current-change="handleCurrentChange"
-      >
-        <template #title="{ row }">
-          <div class="posts-title-cell">
-            <img v-if="row.cover_url" :src="row.cover_url" :alt="row.title || ''" />
-            <span v-else><ArtSvgIcon icon="ri:file-text-line" /></span>
-            <div
-              ><strong>{{ row.title || '未命名文章' }}</strong
-              ><small>{{ row.summary || '暂无摘要' }}</small></div
+          <img
+            v-if="featuredPost.cover_url"
+            :src="featuredPost.cover_url"
+            :alt="featuredPost.title || ''"
+          />
+          <div v-else class="posts-featured__placeholder"
+            ><ArtSvgIcon icon="ri:article-line"
+          /></div>
+          <div class="posts-featured__content">
+            <span><ArtSvgIcon icon="ri:pushpin-2-line" />精选推荐</span>
+            <h2>{{ featuredPost.title }}</h2>
+            <p>{{ featuredPost.summary || '查看内容详情' }}</p>
+            <small
+              >{{ formatDate(featuredPost.published_at) }} ·
+              {{ estimatedReadTime(featuredPost.summary || '') }}</small
             >
           </div>
-        </template>
-        <template #published_at="{ row }">{{ formatDate(row.published_at) }}</template>
-        <template #read_time="{ row }">{{
-          estimatedReadTime(row.content_html || row.summary || '')
-        }}</template>
-        <template #operation="{ row }">
-          <ElButton link type="primary" @click.stop="goToPost(row.slug)">查看详情</ElButton>
-        </template>
-      </ArtTable>
-    </ElCard>
+        </RouterLink>
 
-    <section
-      v-if="resources.length"
-      class="posts-resources"
-      aria-labelledby="posts-resources-title"
-    >
-      <h2 id="posts-resources-title">{{ resourcesTitle }}</h2>
-      <div>
-        <component
-          :is="isInternal(resource.url) ? RouterLink : 'a'"
-          v-for="resource in resources"
-          :key="resource.title"
-          v-bind="resourceLinkProps(resource.url)"
-          class="posts-resources__item"
-        >
-          <ArtSvgIcon :icon="resource.icon" />
-          <span
-            ><strong>{{ resource.title }}</strong
-            ><small>{{ resource.description }}</small></span
+        <div class="posts-search">
+          <ArtSearchBar
+            v-model="searchForm"
+            :items="searchItems"
+            :is-expand="true"
+            :show-expand="false"
+            :show-reset="false"
+            :show-search="false"
+          />
+        </div>
+
+        <ElCard class="art-table-card posts-table-card">
+          <ArtTableHeader v-model:columns="columnChecks" :loading="loading" layout="">
+            <template #left>
+              <div class="posts-table-title">
+                <strong>{{ categoryTitle }}</strong>
+                <span>共 {{ postPool.length }} 篇</span>
+              </div>
+            </template>
+          </ArtTableHeader>
+
+          <ArtTable
+            v-if="loading || desktopPosts.length"
+            class="posts-desktop-table"
+            row-key="slug"
+            :loading="loading"
+            :data="desktopPosts"
+            :columns="columns"
+            @row-click="handleRowClick"
           >
-          <ArtSvgIcon icon="ri:arrow-right-up-line" />
-        </component>
-      </div>
-    </section>
+            <template #title="{ row }">
+              <div class="posts-title-cell">
+                <img v-if="row.cover_url" :src="row.cover_url" :alt="row.title || ''" />
+                <span v-else><ArtSvgIcon icon="ri:file-text-line" /></span>
+                <div
+                  ><strong>{{ row.title || '未命名文章' }}</strong
+                  ><small>{{ row.summary || '暂无摘要' }}</small></div
+                >
+              </div>
+            </template>
+            <template #published_at="{ row }">{{ formatDate(row.published_at) }}</template>
+            <template #read_time="{ row }">{{ estimatedReadTime(row.summary || '') }}</template>
+            <template #operation="{ row }">
+              <ElButton link type="primary" @click.stop="goToPost(row.slug)">查看详情</ElButton>
+            </template>
+          </ArtTable>
+
+          <ElButton
+            v-if="!loading && hasMore"
+            class="posts-desktop-more"
+            :loading="loadingMore"
+            @click="loadMore"
+          >
+            加载更多
+          </ElButton>
+
+          <div v-if="!loading && mobilePosts.length" class="posts-mobile-list">
+            <article
+              v-for="row in mobilePosts"
+              :key="row.slug"
+              class="posts-mobile-card"
+              @click="goToPost(row.slug)"
+            >
+              <img v-if="row.cover_url" :src="row.cover_url" :alt="row.title || ''" />
+              <span v-else class="posts-mobile-card__placeholder"
+                ><ArtSvgIcon icon="ri:file-text-line"
+              /></span>
+              <div>
+                <strong>{{ row.title || '未命名文章' }}</strong>
+                <p>{{ row.summary || '暂无摘要' }}</p>
+                <small
+                  >{{ formatDate(row.published_at) }} ·
+                  {{ estimatedReadTime(row.summary || '') }}</small
+                >
+              </div>
+              <ArtSvgIcon icon="ri:arrow-right-s-line" />
+            </article>
+          </div>
+          <ElButton
+            v-if="!loading && allPosts.length > 0 && hasMore"
+            class="posts-mobile-more"
+            :loading="loadingMore"
+            @click="loadMore"
+          >
+            加载更多
+          </ElButton>
+
+          <ElEmpty v-if="!loading && !desktopPosts.length" description="暂无相关内容">
+            <p class="posts-empty-hint">
+              {{ searchForm.keyword ? '尝试更换搜索关键词' : '敬请期待更多精彩内容' }}
+            </p>
+            <ElButton v-if="searchForm.keyword" type="primary" @click="handleReset"
+              >清除搜索</ElButton
+            >
+          </ElEmpty>
+        </ElCard>
+      </template>
+
+      <section
+        v-else-if="block.type === 'resources' && resources.length"
+        class="posts-resources"
+        aria-labelledby="posts-resources-title"
+      >
+        <h2 id="posts-resources-title">{{ resourcesTitle }}</h2>
+        <div>
+          <component
+            :is="isInternal(resource.url) ? RouterLink : 'a'"
+            v-for="resource in resources"
+            :key="resource.title"
+            v-bind="resourceLinkProps(resource.url)"
+            class="posts-resources__item"
+          >
+            <ArtSvgIcon :icon="resource.icon" />
+            <span
+              ><strong>{{ resource.title }}</strong
+              ><small>{{ resource.description }}</small></span
+            >
+            <ArtSvgIcon icon="ri:arrow-right-up-line" />
+          </component>
+        </div>
+      </section>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
   import { RouterLink } from 'vue-router'
   import { useTable } from '@/hooks/core/useTable'
-  import { getCmsPosts } from '@/services/user'
+  import { getCmsBlocks, getCmsPosts } from '@/services/user'
   import type { CMSPost } from '@/services/types'
   import { useSiteStore } from '@/stores/site'
 
@@ -146,12 +198,16 @@
     keyword?: string
     sort?: SortMode
   }
+  type ListedPost = CMSPost & { views?: number }
 
   const route = useRoute()
   const router = useRouter()
   const siteStore = useSiteStore()
   const currentCategory = ref(String(route.meta.categoryKey || 'docs'))
   const searchForm = ref<{ keyword?: string; sort?: SortMode }>({ keyword: '', sort: 'latest' })
+  const allPosts = ref<ListedPost[]>([])
+  const serverTotal = ref(0)
+  const loadingMore = ref(false)
 
   const categories = ref([
     { key: 'docs', name: '文档', icon: 'ri:book-open-line', count: 0 },
@@ -198,62 +254,31 @@
 
   const fetchPostTable = async (
     params: PostQuery
-  ): Promise<Api.Common.PaginatedResponse<CMSPost>> => {
+  ): Promise<Api.Common.PaginatedResponse<ListedPost>> => {
     const current = Number(params.current || 1)
-    const size = Number(params.size || 10)
+    const size = Number(params.size || 20)
     const response = await getCmsPosts({
       category_key: params.category_key,
       lang: params.lang,
-      limit: size,
-      offset: (current - 1) * size
+      limit: 20,
+      offset: 0
     })
-    let records = [...(response.data?.items || [])]
-    siteStore.posts[params.category_key] = records
-
-    const keyword = String(params.keyword || '')
-      .trim()
-      .toLocaleLowerCase()
-    if (keyword) {
-      records = records.filter((post) =>
-        `${post.title || ''} ${post.summary || ''}`.toLocaleLowerCase().includes(keyword)
-      )
-    }
-    if (params.sort === 'title')
-      records.sort((left, right) =>
-        String(left.title || '').localeCompare(String(right.title || ''))
-      )
-    else if (params.sort === 'popular')
-      records.sort((left: any, right: any) => Number(right.views || 0) - Number(left.views || 0))
-    else
-      records.sort(
-        (left, right) =>
-          new Date(right.published_at || 0).getTime() - new Date(left.published_at || 0).getTime()
-      )
-
-    return { records, total: response.data?.total || records.length, current, size }
+    const sourceRecords = [...(response.data?.items || [])] as ListedPost[]
+    allPosts.value = sourceRecords
+    siteStore.posts[params.category_key] = sourceRecords
+    serverTotal.value = response.data?.total || sourceRecords.length
+    return { records: sourceRecords, total: serverTotal.value, current, size }
   }
 
-  const {
-    columns,
-    columnChecks,
-    data,
-    loading,
-    pagination,
-    getData,
-    searchParams,
-    resetSearchParams,
-    handleSizeChange,
-    handleCurrentChange,
-    refreshData
-  } = useTable({
+  const { columns, columnChecks, loading, pagination, getData } = useTable({
     core: {
       apiFn: fetchPostTable,
       immediate: false,
       apiParams: {
         current: 1,
-        size: 10,
+        size: 20,
         category_key: currentCategory.value,
-        lang: siteStore.currentLang || 'zh-CN',
+        lang: 'zh-CN',
         ...searchForm.value
       },
       columnsFactory: () => [
@@ -265,7 +290,45 @@
     }
   })
 
-  const blocks = computed(() => (siteStore.blocks[currentCategory.value] || []) as any[])
+  type CmsPageBlock = {
+    type?: string
+    sort_order?: number
+    visible?: boolean
+    content?: any
+    content_json?: string
+  }
+  const resolvedBlocks = computed(() => {
+    const defaults: CmsPageBlock[] = [
+      { type: 'hero', sort_order: 1, visible: true, content: {} },
+      { type: 'posts', sort_order: 2, visible: true, content: {} },
+      { type: 'resources', sort_order: 3, visible: true, content: {} }
+    ]
+    const raw = (siteStore.blocks[currentCategory.value] || []) as CmsPageBlock[]
+    const known = new Map(defaults.map((block) => [block.type, { ...block }]))
+    raw.forEach((block) => {
+      if (!block.type || !known.has(block.type)) return
+      const parsed =
+        block.content && typeof block.content === 'object'
+          ? block.content
+          : (() => {
+              try {
+                return block.content_json ? JSON.parse(block.content_json) : {}
+              } catch {
+                return {}
+              }
+            })()
+      const base = known.get(block.type) as CmsPageBlock
+      known.set(block.type, {
+        ...base,
+        ...block,
+        content: { ...(base.content || {}), ...parsed }
+      })
+    })
+    return [...known.values()]
+      .filter((block) => block.visible !== false)
+      .sort((left, right) => Number(left.sort_order || 0) - Number(right.sort_order || 0))
+  })
+  const blocks = computed(() => resolvedBlocks.value)
   const blockContent = (type: string) => {
     const block = blocks.value.find((item) => item?.type === type)
     if (!block) return {}
@@ -316,12 +379,37 @@
       : fallback
   })
 
-  const featuredPost = computed(() => data.value.find((post) => post.cover_url) || null)
-  const tableData = computed(() =>
-    featuredPost.value && !searchForm.value.keyword && pagination.current === 1
-      ? data.value.filter((post) => post !== featuredPost.value)
-      : data.value
-  )
+  const featuredPost = computed(() => allPosts.value.find((post) => post.cover_url) || null)
+  const postPool = computed(() => {
+    let records = [...allPosts.value]
+    const keyword = String(searchForm.value.keyword || '')
+      .trim()
+      .toLocaleLowerCase()
+    if (keyword) {
+      records = records.filter((post) =>
+        `${post.title || ''} ${post.summary || ''}`.toLocaleLowerCase().includes(keyword)
+      )
+    } else if (featuredPost.value) {
+      records = records.filter((post) => post !== featuredPost.value)
+    }
+    if (searchForm.value.sort === 'title') {
+      records.sort((left, right) =>
+        String(left.title || '').localeCompare(String(right.title || ''))
+      )
+    } else if (searchForm.value.sort === 'popular') {
+      records.sort((left, right) => Number(right.views || 0) - Number(left.views || 0))
+    } else {
+      records.sort(
+        (left, right) =>
+          new Date(right.published_at || 0).getTime() - new Date(left.published_at || 0).getTime()
+      )
+    }
+    return records
+  })
+  const desktopPosts = computed(() => postPool.value)
+  const mobilePostPool = computed(() => postPool.value)
+  const mobilePosts = computed(() => mobilePostPool.value)
+  const hasMore = computed(() => allPosts.value.length < serverTotal.value)
   const postPath = (post: CMSPost) => `/${currentCategory.value}/${post.slug || ''}`
   const goToPost = (slug?: string) => {
     if (slug) router.push(`/${currentCategory.value}/${slug}`)
@@ -332,7 +420,12 @@
   const formatDate = (value?: string) => {
     if (!value) return '-'
     const date = new Date(value)
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('zh-CN')
+    if (Number.isNaN(date.getTime())) return value
+    const days = Math.floor((Date.now() - date.getTime()) / 86_400_000)
+    if (days <= 0) return '今天'
+    if (days === 1) return '昨天'
+    if (days < 7) return `${days} 天前`
+    return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
   }
   const estimatedReadTime = (text: string) =>
     `${Math.max(1, Math.ceil(String(text || '').length / 800))} 分钟`
@@ -343,13 +436,29 @@
   const resourceLinkProps = (url?: string) =>
     isInternal(url) ? { to: url || '/' } : { href: url || '#', rel: 'noopener noreferrer' }
 
-  const handleSearch = (params: { keyword?: string; sort?: SortMode }) => {
-    Object.assign(searchParams, { ...params, category_key: currentCategory.value })
-    getData()
-  }
   const handleReset = () => {
     searchForm.value = { keyword: '', sort: 'latest' }
-    resetSearchParams()
+  }
+
+  const loadMore = async () => {
+    if (loadingMore.value || !hasMore.value) return
+    loadingMore.value = true
+    try {
+      const response = await getCmsPosts({
+        category_key: currentCategory.value,
+        lang: 'zh-CN',
+        limit: 20,
+        offset: allPosts.value.length
+      })
+      const nextPosts = (response.data?.items || []) as ListedPost[]
+      allPosts.value = allPosts.value.concat(nextPosts)
+      serverTotal.value = response.data?.total || allPosts.value.length
+      siteStore.posts[currentCategory.value] = allPosts.value
+    } catch {
+      // Keep the already loaded posts available when the next page fails.
+    } finally {
+      loadingMore.value = false
+    }
   }
 
   const refreshCategoryCounts = async () => {
@@ -358,7 +467,7 @@
         try {
           const response = await getCmsPosts({
             category_key: category.key,
-            lang: siteStore.currentLang || 'zh-CN',
+            lang: 'zh-CN',
             limit: 1,
             offset: 0
           })
@@ -379,11 +488,14 @@
     () => route.meta.categoryKey,
     async (key) => {
       currentCategory.value = String(key || 'docs')
-      Object.assign(searchParams, {
-        category_key: currentCategory.value,
-        lang: siteStore.currentLang || 'zh-CN'
-      })
-      await siteStore.fetchBlocks(currentCategory.value)
+      allPosts.value = []
+      serverTotal.value = 0
+      try {
+        const response = await getCmsBlocks({ page: currentCategory.value, lang: 'zh-CN' })
+        siteStore.blocks[currentCategory.value] = response.data?.items || []
+      } catch {
+        siteStore.blocks[currentCategory.value] = []
+      }
       await getData()
       refreshCategoryCounts()
     },
@@ -596,6 +708,82 @@
     white-space: nowrap;
   }
 
+  .posts-mobile-list {
+    display: none;
+  }
+
+  .posts-mobile-card {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--default-border);
+    cursor: pointer;
+  }
+
+  .posts-mobile-card > img,
+  .posts-mobile-card__placeholder {
+    width: 72px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: calc(var(--custom-radius) / 2 + 1px);
+  }
+
+  .posts-mobile-card__placeholder {
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    color: var(--theme-color);
+    background: color-mix(in srgb, var(--theme-color) 9%, var(--default-box-color));
+  }
+
+  .posts-mobile-card > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .posts-mobile-card strong,
+  .posts-mobile-card p,
+  .posts-mobile-card small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .posts-mobile-card strong {
+    color: var(--art-gray-800);
+  }
+
+  .posts-mobile-card p,
+  .posts-mobile-card small {
+    margin: 0;
+    color: var(--art-gray-500);
+  }
+
+  .posts-mobile-card > .art-svg-icon {
+    color: var(--art-gray-500);
+  }
+
+  .posts-mobile-more {
+    display: none;
+    width: 100%;
+    margin-top: 14px;
+  }
+
+  .posts-desktop-more {
+    display: block;
+    min-width: 140px;
+    margin: 18px auto 0;
+  }
+
+  .posts-empty-hint {
+    margin: 0 0 12px;
+    color: var(--art-gray-500);
+  }
+
   .posts-resources {
     max-width: 1180px;
     padding: 70px 0 54px;
@@ -658,6 +846,21 @@
 
     .posts-resources > div {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (width <= 767px) {
+    .posts-desktop-table,
+    .posts-desktop-more {
+      display: none;
+    }
+
+    .posts-mobile-list {
+      display: block;
+    }
+
+    .posts-mobile-more {
+      display: block;
     }
   }
 

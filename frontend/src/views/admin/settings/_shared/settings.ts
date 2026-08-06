@@ -1,5 +1,5 @@
 import { listSettings, updateSetting } from '@/services/admin'
-import { useAdminAuthStore } from '@/stores/adminAuth'
+import { useAuth } from '@/hooks/core/useAuth'
 
 export interface SettingUpdate {
   key: string
@@ -9,18 +9,10 @@ export interface SettingUpdate {
 export type SettingValueMap = Map<string, unknown>
 
 export function useAdminPermissions() {
-  const adminAuth = useAdminAuthStore()
-  const permissions = computed<string[]>(
-    () => (adminAuth.profile as { permissions?: string[] } | null)?.permissions ?? []
-  )
+  const { hasAuth } = useAuth()
+  const hasPermission = (...marks: string[]) => computed(() => marks.some((mark) => hasAuth(mark)))
 
-  const hasPermission = (...marks: string[]) =>
-    computed(
-      () =>
-        permissions.value.includes('*') || marks.some((mark) => permissions.value.includes(mark))
-    )
-
-  return { permissions, hasPermission }
+  return { hasPermission }
 }
 
 export async function fetchSettingMap(): Promise<SettingValueMap> {

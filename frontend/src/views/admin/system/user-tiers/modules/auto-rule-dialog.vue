@@ -6,10 +6,10 @@
     destroy-on-close
     align-center
   >
-    <ElForm ref="formRef" :model="localForm" :rules="rules" label-position="top">
+    <ElForm :model="localForm" label-position="top">
       <ElRow :gutter="12">
         <ElCol :span="12">
-          <ElFormItem label="时长(天，-1 不限)" prop="duration_days">
+          <ElFormItem label="时长(天,-1无限)" prop="duration_days">
             <ElInputNumber v-model="localForm.duration_days" :min="-1" class="full-width" />
           </ElFormItem>
         </ElCol>
@@ -64,8 +64,6 @@
 </template>
 
 <script setup lang="ts">
-  import type { FormInstance, FormRules } from 'element-plus'
-
   defineOptions({ name: 'UserTierAutoRuleDialog' })
 
   interface AutoCondition {
@@ -109,7 +107,6 @@
   })
   const emit = defineEmits<Emits>()
 
-  const formRef = ref<FormInstance>()
   const conditionRows = ref<AutoCondition[]>([])
 
   const dialogVisible = computed({
@@ -123,10 +120,6 @@
 
   const localForm = reactive<UserTierAutoRuleFormValue>(createDefaultForm())
 
-  const rules = computed<FormRules>(() => ({
-    sort_order: [{ required: true, message: '请输入排序', trigger: 'change' }]
-  }))
-
   watch(
     () => props.visible,
     (visible) => {
@@ -139,7 +132,6 @@
       if (!conditionRows.value.length) {
         conditionRows.value = [createDefaultCondition()]
       }
-      nextTick(() => formRef.value?.clearValidate())
     },
     { immediate: true }
   )
@@ -198,33 +190,12 @@
     conditionRows.value.splice(index, 1)
   }
 
-  async function handleSubmit() {
-    if (!formRef.value) {
-      return
-    }
-
-    const valid = await formRef.value.validate().catch(() => false)
-    if (!valid) {
-      return
-    }
-
+  function handleSubmit() {
     const normalized = conditionRows.value.map((item) => ({
       metric: String(item.metric || '').trim(),
       operator: String(item.operator || '').trim(),
       value: Number(item.value)
     }))
-
-    const invalid = normalized.some(
-      (item) =>
-        !metricOptions.some((option) => option.value === item.metric) ||
-        !operatorOptions.some((option) => option.value === item.operator) ||
-        !Number.isFinite(item.value)
-    )
-
-    if (invalid) {
-      ElMessage.error('审批条件存在无效项')
-      return
-    }
 
     emit('submit', {
       ...localForm,

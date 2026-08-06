@@ -8,10 +8,10 @@
   >
     <ElForm label-position="top">
       <ElFormItem label="名称">
-        <ElInput v-model.trim="localForm.name" maxlength="80" placeholder="请输入名称" />
+        <ElInput v-model.trim="localForm.name" placeholder="请输入名称" />
       </ElFormItem>
       <ElFormItem label="代码">
-        <ElInput v-model.trim="localForm.code" maxlength="80" placeholder="请输入代码" />
+        <ElInput v-model.trim="localForm.code" placeholder="请输入代码" />
       </ElFormItem>
       <ElFormItem label="自动化实例">
         <ElSelect
@@ -30,24 +30,6 @@
           />
         </ElSelect>
       </ElFormItem>
-      <ElRow :gutter="12">
-        <ElCol :span="12">
-          <ElFormItem label="Plugin ID">
-            <ElInput
-              v-model.trim="localForm.automation_plugin_id"
-              placeholder="automation plugin id"
-            />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="12">
-          <ElFormItem label="Instance ID">
-            <ElInput
-              v-model.trim="localForm.automation_instance_id"
-              placeholder="automation instance id"
-            />
-          </ElFormItem>
-        </ElCol>
-      </ElRow>
       <ElRow :gutter="12">
         <ElCol :span="12">
           <ElFormItem label="排序">
@@ -86,28 +68,13 @@
         />
 
         <div class="config-layout">
-          <ElCard shadow="never" class="config-card">
-            <template #header>
-              <div class="config-title">Schema Preview</div>
-            </template>
-
-            <ElSkeleton v-if="configLoading" :rows="10" animated />
-            <ElInput v-else :model-value="prettySchema" readonly type="textarea" :rows="12" />
-          </ElCard>
-
-          <ElCard shadow="never" class="config-card">
-            <template #header>
-              <div class="config-title">Raw Config JSON</div>
-            </template>
-
-            <ElInput
-              v-model="configText"
-              type="textarea"
-              :rows="12"
-              placeholder='{"key":"value"}'
-            />
-            <div class="config-tip">插件配置以 JSON 保存，提交时由后端校验。</div>
-          </ElCard>
+          <ElSkeleton v-if="configLoading" :rows="10" animated />
+          <JsonSchemaForm
+            v-else
+            :schema="schemaObject"
+            :ui-schema="uiSchemaObject"
+            v-model:model-value="configModel"
+          />
         </div>
       </template>
     </ElForm>
@@ -124,6 +91,7 @@
 </template>
 
 <script setup lang="ts">
+  import JsonSchemaForm from '@/components/business/json-schema-form/index.vue'
   defineOptions({ name: 'CatalogGoodsTypeDialog' })
 
   interface GoodsTypeDialogFormValue {
@@ -143,6 +111,7 @@
     formData: GoodsTypeDialogFormValue
     automationOptions?: Array<{ label: string; value: string }>
     schemaJson?: string
+    uiSchemaJson?: string
     configJson?: string
     configError?: string
     configLoading?: boolean
@@ -159,6 +128,7 @@
   const props = withDefaults(defineProps<Props>(), {
     automationOptions: () => [],
     schemaJson: '{}',
+    uiSchemaJson: '{}',
     configJson: '{}',
     configError: '',
     configLoading: false,
@@ -174,10 +144,9 @@
     set: (value) => emit('update:visible', value)
   })
 
-  const configText = computed({
-    get: () => props.configJson,
-    set: (value) => emit('update:configJson', value)
-  })
+  const configModel = ref<Record<string, unknown>>({})
+  const schemaObject = computed(() => parseObject(props.schemaJson))
+  const uiSchemaObject = computed(() => parseObject(props.uiSchemaJson))
 
   const showConfigSection = computed(
     () =>
@@ -185,7 +154,17 @@
       Boolean(String(localForm.automation_instance_id || '').trim())
   )
 
-  const prettySchema = computed(() => normalizePrettyJson(props.schemaJson))
+  watch(
+    () => props.configJson,
+    (value) => {
+      configModel.value = parseObject(value)
+    },
+    { immediate: true }
+  )
+
+  watch(configModel, (value) => emit('update:configJson', JSON.stringify(value || {})), {
+    deep: true
+  })
 
   watch(
     () => [props.visible, props.formData] as const,
@@ -230,6 +209,15 @@
     }
   }
 
+  function parseObject(value?: string) {
+    try {
+      const parsed = JSON.parse(String(value || '{}'))
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+    } catch {
+      return {}
+    }
+  }
+
   function toAutomationRef(pluginId?: string, instanceId?: string) {
     const plugin = String(pluginId || '').trim()
     const instance = String(instanceId || '').trim()
@@ -246,19 +234,6 @@
     const [pluginId, instanceId] = raw.split(':')
     localForm.automation_plugin_id = String(pluginId || '').trim()
     localForm.automation_instance_id = String(instanceId || '').trim()
-  }
-
-  function normalizePrettyJson(value: string) {
-    const text = String(value || '').trim()
-    if (!text) {
-      return '{}'
-    }
-
-    try {
-      return JSON.stringify(JSON.parse(text), null, 2)
-    } catch {
-      return text
-    }
   }
 </script>
 

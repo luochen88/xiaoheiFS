@@ -178,9 +178,14 @@
   const formatDate = (value?: string) => {
     if (!value) return '-'
     const date = new Date(value)
-    return Number.isNaN(date.getTime())
-      ? value
-      : date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
+    if (Number.isNaN(date.getTime())) return value
+    const days = Math.floor((Date.now() - date.getTime()) / 86_400_000)
+    if (days <= 0) return '今天'
+    if (days === 1) return '昨天'
+    if (days < 7) return `${days} 天前`
+    if (days < 30) return `${Math.floor(days / 7)} 周前`
+    if (days < 365) return `${Math.floor(days / 30)} 个月前`
+    return `${Math.floor(days / 365)} 年前`
   }
 
   const extractHeadings = () => {
@@ -239,7 +244,7 @@
     try {
       const response = await getCmsPosts({
         category_key: postCategory.value,
-        lang: siteStore.currentLang || 'zh-CN',
+        lang: 'zh-CN',
         limit: 100,
         offset: 0
       })
@@ -267,14 +272,14 @@
     try {
       const response = await getCmsPostBySlug(slug)
       post.value = (response.data || null) as PublicPost | null
-      await nextTick()
-      extractHeadings()
       await fetchRelatedPosts()
     } catch {
       post.value = null
     } finally {
       loading.value = false
-      nextTick(updateReadingProgress)
+      await nextTick()
+      extractHeadings()
+      updateReadingProgress()
     }
   }
 

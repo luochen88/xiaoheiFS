@@ -1,15 +1,5 @@
 <template>
   <div class="cms-nav-items-page art-full-height">
-    <ArtSearchBar
-      v-if="canView"
-      v-model="searchForm"
-      :items="searchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="handleSearchReset"
-    />
-
     <div class="page-header">
       <div>
         <div class="page-title">导航配置</div>
@@ -133,7 +123,7 @@
               @refresh="fetchData"
             />
 
-            <ArtTable :data="filteredItems" :columns="columns" row-key="id" class="nav-table">
+            <ArtTable :data="items" :columns="columns" row-key="id" class="nav-table">
               <template #sort="{ row }">
                 <template v-if="findItemIndex(row.id) >= 0">
                   <ElSpace wrap>
@@ -156,19 +146,13 @@
               </template>
 
               <template #label="{ row }">
-                <ElInput
-                  v-model="row.label"
-                  :disabled="!canUpdate"
-                  :maxlength="INPUT_LIMITS.CMS_NAME"
-                  placeholder="产品中心"
-                />
+                <ElInput v-model="row.label" :disabled="!canUpdate" placeholder="产品中心" />
               </template>
 
               <template #url="{ row }">
                 <ElInput
                   v-model="row.url"
                   :disabled="!canUpdate"
-                  :maxlength="INPUT_LIMITS.URL"
                   placeholder="/products 或 https://..."
                 />
               </template>
@@ -238,10 +222,9 @@
 
 <script setup lang="ts">
   import type { SettingItemRecord } from '@/services/admin'
-  import { fetchAdminSettings, hasAdminPermission, updateAdminSettings } from '@/services/admin'
+  import { fetchAdminSettings, updateAdminSettings } from '@/services/admin'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { useTable } from '@/hooks/core/useTable'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
-  import { INPUT_LIMITS } from '@/constants/inputLimits'
   import { ElMessage, ElMessageBox } from 'element-plus'
 
   defineOptions({ name: 'CmsNavItemsPage' })
@@ -257,16 +240,10 @@
     enabled: boolean
   }
 
-  interface NavSearchForm {
-    keyword: string
-    lang?: string
-  }
-
   const SETTING_KEY = 'site_nav_items'
   const SITE_LANGUAGES = ['zh-CN', 'en-US']
 
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
+  const { hasAuth } = useAuth()
 
   const saving = ref(false)
   const items = ref<NavItem[]>([])
@@ -276,23 +253,6 @@
   const languageOptions = [
     { label: '简体中文', value: 'zh-CN' },
     { label: '英文', value: 'en-US' }
-  ]
-
-  const searchForm = ref<NavSearchForm>({ keyword: '', lang: undefined })
-  const activeSearch = ref<NavSearchForm>({ ...searchForm.value })
-  const searchItems = [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '搜索名称或 URL' }
-    },
-    {
-      key: 'lang',
-      label: '语言',
-      type: 'select',
-      props: { clearable: true, placeholder: '全部语言', options: languageOptions }
-    }
   ]
 
   const { columnChecks, columns, loading, fetchData } = useTable({
@@ -318,22 +278,13 @@
     )
   })
 
-  const canView = computed(() => hasAdminPermission(info.value?.permissions, ['settings.view']))
-  const canUpdate = computed(() => hasAdminPermission(info.value?.permissions, ['settings.update']))
+  const canView = computed(() => hasAuth('settings.view'))
+  const canUpdate = computed(() => hasAuth('settings.update'))
 
   const previewItems = computed(() => {
     return items.value.filter(
       (item) => item.enabled !== false && (!item.lang || item.lang === previewLang.value)
     )
-  })
-
-  const filteredItems = computed(() => {
-    const keyword = activeSearch.value.keyword.trim().toLowerCase()
-    return items.value.filter((item) => {
-      const matchesKeyword =
-        !keyword || [item.label, item.url].some((value) => value.toLowerCase().includes(keyword))
-      return matchesKeyword && (!activeSearch.value.lang || item.lang === activeSearch.value.lang)
-    })
   })
 
   const defaultItems = computed<NavItem[]>(() => [
@@ -480,15 +431,6 @@
     }
   }
 
-  function handleSearch(params: NavSearchForm) {
-    activeSearch.value = { ...params }
-  }
-
-  function handleSearchReset() {
-    searchForm.value = { keyword: '', lang: undefined }
-    activeSearch.value = { ...searchForm.value }
-  }
-
   function findItemIndex(id: string) {
     return items.value.findIndex((item) => item.id === id)
   }
@@ -603,6 +545,8 @@
       items.value = sanitizeItems(next)
       syncRawJson()
       ElMessage.success('导航项保存成功')
+    } catch (error: any) {
+      ElMessage.error(error?.response?.data?.error || '保存失败')
     } finally {
       saving.value = false
     }

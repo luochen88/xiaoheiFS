@@ -97,8 +97,6 @@
       @refresh="fetchLogs()"
       @page-size-change="handlePageSizeChange"
       @page-current-change="handlePageCurrentChange"
-      @search="handleLogSearch"
-      @reset="handleLogReset"
       @view-automation-detail="openDetail"
     />
     <ElCard v-else shadow="never"><ElEmpty description="当前账号没有查看调试日志的权限" /></ElCard>
@@ -114,16 +112,16 @@
     DebugLogsResponse,
     IntegrationSyncLogRecord
   } from '@/services/admin'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { useTable } from '@/hooks/core/useTable'
   import {
     fetchAdminDebugLogs,
     fetchAdminDebugStatus,
     fetchAdminSettings,
-    hasAdminPermission,
     updateAdminDebugStatus,
     updateAdminSettings
   } from '@/services/admin'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
+  import { ElMessage } from 'element-plus'
   import AutomationLogDetailDialog from './modules/automation-log-detail-dialog.vue'
   import DebugLogTabs from './modules/debug-log-tabs.vue'
 
@@ -133,9 +131,7 @@
   type RetentionKey =
     'automation' | 'audit' | 'sync' | 'task_runs' | 'probe_events' | 'probe_sessions'
 
-  interface DebugTableParams extends Api.Common.CommonSearchParams {
-    keyword?: string
-  }
+  type DebugTableParams = Api.Common.CommonSearchParams
 
   const statusLoading = ref(false)
   const retentionLoading = ref(false)
@@ -150,7 +146,7 @@
   const auditTable = useTable({
     core: {
       apiFn: fetchAuditTable,
-      apiParams: { current: 1, size: 20, keyword: '' },
+      apiParams: { current: 1, size: 20 },
       immediate: false,
       columnsFactory: () => []
     }
@@ -158,7 +154,7 @@
   const automationTable = useTable({
     core: {
       apiFn: fetchAutomationTable,
-      apiParams: { current: 1, size: 20, keyword: '' },
+      apiParams: { current: 1, size: 20 },
       immediate: false,
       columnsFactory: () => []
     }
@@ -166,7 +162,7 @@
   const syncTable = useTable({
     core: {
       apiFn: fetchSyncTable,
-      apiParams: { current: 1, size: 20, keyword: '' },
+      apiParams: { current: 1, size: 20 },
       immediate: false,
       columnsFactory: () => []
     }
@@ -200,20 +196,12 @@
     { key: 'probe_sessions', label: '探针日志会话' }
   ]
 
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
-
-  const canViewStatus = computed(() => hasAdminPermission(info.value?.permissions, ['debug.view']))
-  const canUpdateStatus = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['debug.update'])
-  )
-  const canViewLogs = computed(() => hasAdminPermission(info.value?.permissions, ['debug.list']))
-  const canViewSettings = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['settings.view'])
-  )
-  const canUpdateSettings = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['settings.update'])
-  )
+  const { hasAuth } = useAuth()
+  const canViewStatus = computed(() => hasAuth('debug.view'))
+  const canUpdateStatus = computed(() => hasAuth('debug.update'))
+  const canViewLogs = computed(() => hasAuth('debug.list'))
+  const canViewSettings = computed(() => hasAuth('settings.view'))
+  const canUpdateSettings = computed(() => hasAuth('settings.update'))
 
   onMounted(() => {
     initializePage()
@@ -241,6 +229,8 @@
     statusLoading.value = true
     try {
       debugEnabled.value = Boolean((await fetchAdminDebugStatus()).enabled)
+    } catch (error: any) {
+      ElMessage.error(error?.response?.data?.error || '加载调试状态失败')
     } finally {
       statusLoading.value = false
     }
@@ -256,6 +246,7 @@
       ElMessage.success(checked ? '调试模式已启用' : '调试模式已禁用')
     } catch {
       debugEnabled.value = previous
+      ElMessage.error('调试模式更新失败')
     } finally {
       debugUpdating.value = false
     }
@@ -275,6 +266,8 @@
       retention.task_runs = parseDays(values.get('scheduled_task_run_retention_days'), 14)
       retention.probe_events = parseDays(values.get('probe_status_event_retention_days'), 30)
       retention.probe_sessions = parseDays(values.get('probe_log_session_retention_days'), 7)
+    } catch (error: any) {
+      ElMessage.error(error?.response?.data?.error || '加载日志保留策略失败')
     } finally {
       retentionLoading.value = false
     }
@@ -309,6 +302,8 @@
         ]
       })
       ElMessage.success('日志保留策略已保存')
+    } catch (error: any) {
+      ElMessage.error(error?.response?.data?.error || '日志保留策略保存失败')
     } finally {
       savingRetention.value = false
     }
@@ -322,8 +317,7 @@
     const payload = await fetchAdminDebugLogs({
       types: type,
       limit: params.size,
-      offset: (params.current - 1) * params.size,
-      q: params.keyword || undefined
+      offset: (params.current - 1) * params.size
     })
     const selected = select(payload)
     const records = selected?.items || []
@@ -358,7 +352,11 @@
   }
 
   async function fetchLogs(type: LogTabKey = activeLogTab.value) {
-    await getTable(type).getData()
+    try {
+      await getTable(type).getData()
+    } catch {
+      ElMessage.error('加载调试日志失败')
+    }
   }
 
   function handlePageSizeChange(type: LogTabKey, size: number) {
@@ -367,15 +365,6 @@
 
   function handlePageCurrentChange(type: LogTabKey, page: number) {
     getTable(type).handleCurrentChange(page)
-  }
-
-  async function handleLogSearch(type: LogTabKey, keyword: string) {
-    Object.assign(getTable(type).searchParams, { keyword })
-    await fetchLogs(type)
-  }
-
-  async function handleLogReset(type: LogTabKey) {
-    await getTable(type).resetSearchParams()
   }
 
   function openDetail(record: AutomationLogRecord) {

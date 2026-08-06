@@ -1,18 +1,6 @@
 <template>
   <div class="art-full-height">
-    <AdminSearch
-      v-if="canView"
-      v-show="showSearchBar"
-      v-model="searchForm"
-      @search="handleSearch"
-      @reset="handleReset"
-    />
-
-    <ElCard
-      v-loading="loading"
-      class="art-table-card"
-      :style="{ marginTop: canView && showSearchBar ? '12px' : '0' }"
-    >
+    <ElCard v-loading="loading" class="art-table-card">
       <template #header>
         <div class="page-header">
           <div>
@@ -29,12 +17,7 @@
       <ElEmpty v-if="!canView" description="你没有查看管理员列表的权限。" />
 
       <template v-else>
-        <ArtTableHeader
-          v-model:columns="columnChecks"
-          v-model:showSearchBar="showSearchBar"
-          :loading="loading"
-          @refresh="fetchData"
-        />
+        <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="fetchData" />
 
         <ArtTable
           row-key="id"
@@ -83,7 +66,6 @@
       :mode="dialogMode"
       :form-data="dialogForm"
       :permission-groups="permissionGroups"
-      :current-admin-id="currentAdminId"
       :submitting="dialogSubmitting"
       @submit="handleDialogSubmit"
     />
@@ -96,25 +78,19 @@
     createAdminAccount,
     fetchAdminAccounts,
     fetchPermissionGroups,
-    hasAdminPermission,
     updateAdminAccount,
     updateAdminAccountStatus
   } from '@/services/admin'
   import { useTable } from '@/hooks/core/useTable'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { useAdminAuthStore } from '@/stores/adminAuth'
   import { INPUT_LIMITS } from '@/constants/inputLimits'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import AdminDialog from './modules/admin-dialog.vue'
-  import AdminSearch from './modules/admin-search.vue'
 
   defineOptions({ name: 'SystemAdminPage' })
 
-  interface AdminSearchForm {
-    keyword: string
-    status: 'all' | 'active' | 'disabled'
-  }
-
-  interface AdminTableParams extends Api.Common.CommonSearchParams, AdminSearchForm {}
+  type AdminTableParams = Api.Common.CommonSearchParams
 
   interface AdminDialogFormValue {
     id: number | null
@@ -152,14 +128,13 @@
 
   const adminAuthStore = useAdminAuthStore()
   const { profile: info } = storeToRefs(adminAuthStore)
+  const { hasAuth } = useAuth()
 
-  const showSearchBar = ref(true)
   const dialogVisible = ref(false)
   const dialogSubmitting = ref(false)
   const dialogMode = ref<'create' | 'edit'>('create')
   const initialized = ref(false)
 
-  const searchForm = ref<AdminSearchForm>(createDefaultSearchForm())
   const dialogForm = ref<AdminDialogFormValue>(createDefaultDialogForm())
   const permissionGroups = ref<PermissionGroupRecord[]>([])
 
@@ -169,16 +144,14 @@
     data: tableData,
     loading,
     pagination,
-    searchParams,
     getData,
     fetchData,
-    resetSearchParams,
     handleSizeChange: handlePageSizeChange,
     handleCurrentChange: handlePageCurrentChange
   } = useTable({
     core: {
       apiFn: fetchAdminTable,
-      apiParams: { current: 1, size: 20, ...searchForm.value },
+      apiParams: { current: 1, size: 20 },
       immediate: false,
       columnsFactory: () => [
         { prop: 'avatar', label: '头像', width: 90, useSlot: true },
@@ -199,9 +172,9 @@
   })
 
   const currentAdminId = computed(() => Number(info.value?.id || 0) || null)
-  const canView = computed(() => hasAdminPermission(info.value?.permissions, ['admin.list']))
-  const canCreate = computed(() => hasAdminPermission(info.value?.permissions, ['admin.create']))
-  const canUpdate = computed(() => hasAdminPermission(info.value?.permissions, ['admin.update']))
+  const canView = computed(() => hasAuth('admin.list'))
+  const canCreate = computed(() => hasAuth('admin.create'))
+  const canUpdate = computed(() => hasAuth('admin.update'))
 
   const permissionGroupMap = computed(() => {
     const map = new Map<number, string>()
@@ -228,13 +201,6 @@
     },
     { immediate: true }
   )
-
-  function createDefaultSearchForm(): AdminSearchForm {
-    return {
-      keyword: '',
-      status: 'all'
-    }
-  }
 
   function createDefaultDialogForm(): AdminDialogFormValue {
     return {
@@ -322,37 +288,17 @@
       fetchAdminAccounts({
         limit: params.size,
         offset: (params.current - 1) * params.size,
-        status: params.status || 'all'
+        status: 'all'
       })
     ])
     permissionGroups.value = groupsPayload.items || []
-    const keyword = params.keyword?.trim().toLocaleLowerCase() || ''
-    const records = (adminsPayload.items || [])
-      .map(normalizeAdmin)
-      .filter((item) =>
-        !keyword
-          ? true
-          : [item.username, item.email, item.qq].some((field) =>
-              field.toLocaleLowerCase().includes(keyword)
-            )
-      )
+    const records = (adminsPayload.items || []).map(normalizeAdmin)
     return {
       records,
       current: params.current,
       size: params.size,
-      total: keyword ? records.length : Number(adminsPayload.total ?? records.length)
+      total: Number(adminsPayload.total ?? records.length)
     }
-  }
-
-  function handleSearch(params: AdminSearchForm) {
-    searchForm.value = { ...params }
-    Object.assign(searchParams, params)
-    getData()
-  }
-
-  async function handleReset() {
-    searchForm.value = createDefaultSearchForm()
-    await resetSearchParams()
   }
 
   function openCreate() {

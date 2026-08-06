@@ -168,7 +168,10 @@
         ),
         stringSetting('auth_geetest_captcha_id', form.auth_geetest_captcha_id.trim()),
         stringSetting('auth_geetest_captcha_key', form.auth_geetest_captcha_key.trim()),
-        stringSetting('auth_geetest_api_server', form.auth_geetest_api_server.trim())
+        stringSetting(
+          'auth_geetest_api_server',
+          form.auth_geetest_api_server.trim() || 'https://gcaptcha4.geetest.com'
+        )
       ])
       ElMessage.success('保存成功')
     } finally {

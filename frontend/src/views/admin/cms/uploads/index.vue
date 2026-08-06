@@ -1,22 +1,12 @@
 <template>
   <div class="art-full-height">
-    <ArtSearchBar
-      v-if="canView"
-      v-model="searchForm"
-      :items="searchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="handleReset"
-    />
-
     <ElCard v-loading="loading" class="art-table-card">
       <template #header>
         <div class="page-header">
           <div>
-            <div class="page-title">素材上传</div>
+            <div class="page-title">文件上传</div>
             <div class="page-subtitle">
-              上传内容管理所需图片，并在文章或区块中复用已有素材地址。
+              上传内容管理所需文件，并在文章或区块中复用已有素材地址。
             </div>
           </div>
 
@@ -29,7 +19,7 @@
               accept="image/png,image/jpeg,image/gif,image/webp"
               @change="handleFileSelect"
             >
-              <ElButton type="primary" :loading="uploading">上传图片</ElButton>
+              <ElButton type="primary" :loading="uploading">上传文件</ElButton>
             </ElUpload>
           </div>
         </div>
@@ -63,7 +53,7 @@
               class="upload-preview"
               preview-teleported
             />
-            <div v-else class="upload-placeholder">文件</div>
+            <div v-else class="upload-placeholder">{{ getFileTypeLabel(row.mime, row.name) }}</div>
           </template>
 
           <template #name="{ row }">
@@ -98,9 +88,9 @@
 
 <script setup lang="ts">
   import type { UploadAssetRecord } from '@/services/admin'
-  import { fetchAdminUploads, hasAdminPermission, uploadAdminAsset } from '@/services/admin'
+  import { fetchAdminUploads, uploadAdminAsset } from '@/services/admin'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { useTable } from '@/hooks/core/useTable'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
   import { ElMessage, type UploadFile } from 'element-plus'
 
   defineOptions({ name: 'CmsUploadsPage' })
@@ -116,41 +106,25 @@
     created_at: string
   }
 
-  interface UploadTableParams extends Api.Common.CommonSearchParams {
-    keyword: string
-  }
+  type UploadTableParams = Api.Common.CommonSearchParams
 
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
+  const { hasAuth } = useAuth()
 
   const initialized = ref(false)
   const uploading = ref(false)
-  const searchForm = ref({ keyword: '' })
-  const searchItems = [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '按文件名或 MIME 类型搜索' }
-    }
-  ]
-
   const {
     columnChecks,
     columns,
     data: tableData,
     loading,
     pagination,
-    searchParams,
-    getData,
     fetchData,
-    resetSearchParams,
     handleSizeChange: handlePageSizeChange,
     handleCurrentChange: handlePageCurrentChange
   } = useTable({
     core: {
       apiFn: fetchUploadTable,
-      apiParams: { current: 1, size: 20, keyword: '' },
+      apiParams: { current: 1, size: 20 },
       immediate: false,
       columnsFactory: () => [
         { prop: 'id', label: 'ID', width: 80 },
@@ -165,8 +139,8 @@
     }
   })
 
-  const canView = computed(() => hasAdminPermission(info.value?.permissions, ['upload.list']))
-  const canUpload = computed(() => hasAdminPermission(info.value?.permissions, ['upload.create']))
+  const canView = computed(() => hasAuth('upload.list'))
+  const canUpload = computed(() => hasAuth('upload.create'))
 
   watch(
     canView,
@@ -203,6 +177,25 @@
 
   function isImage(mime: string) {
     return String(mime || '').startsWith('image/')
+  }
+
+  function getFileTypeLabel(mime: string, name: string) {
+    const value = `${mime} ${name}`.toLowerCase()
+    if (value.includes('pdf')) return 'PDF'
+    if (value.includes('word') || /\.docx?$/i.test(name)) return 'Word'
+    if (value.includes('excel') || value.includes('spreadsheet') || /\.xlsx?$/i.test(name)) {
+      return 'Excel'
+    }
+    if (value.includes('powerpoint') || value.includes('presentation') || /\.pptx?$/i.test(name)) {
+      return 'PPT'
+    }
+    if (value.includes('zip') || value.includes('compressed') || /\.(rar|7z|tar|gz)$/i.test(name)) {
+      return '压缩包'
+    }
+    if (value.includes('video')) return '视频'
+    if (value.includes('audio')) return '音频'
+    if (value.includes('text')) return '文本'
+    return '文件'
   }
 
   function formatSize(size: number) {
@@ -264,17 +257,7 @@
       limit: params.size,
       offset: (params.current - 1) * params.size
     })
-    const keyword = String(params.keyword || '')
-      .trim()
-      .toLowerCase()
-    const records = (payload.items || [])
-      .map((item) => normalizeRow(item))
-      .filter((row) => {
-        return (
-          !keyword ||
-          [row.name, row.mime, row.url].some((value) => value.toLowerCase().includes(keyword))
-        )
-      })
+    const records = (payload.items || []).map((item) => normalizeRow(item))
 
     return {
       records,
@@ -282,16 +265,6 @@
       size: params.size,
       total: Number(payload.total || records.length)
     }
-  }
-
-  async function handleSearch(params: { keyword: string }) {
-    Object.assign(searchParams, params)
-    await getData()
-  }
-
-  async function handleReset() {
-    searchForm.value = { keyword: '' }
-    await resetSearchParams()
   }
 
   async function handleFileSelect(uploadFile: UploadFile) {
@@ -303,10 +276,10 @@
 
     try {
       await uploadAdminAsset(uploadFile.raw)
-      ElMessage.success('图片上传成功')
+      ElMessage.success('文件上传成功')
       await fetchData()
     } catch (error: any) {
-      ElMessage.error(error?.response?.data?.error || '图片上传失败')
+      ElMessage.error(error?.response?.data?.error || '文件上传失败')
     } finally {
       uploading.value = false
     }

@@ -1,7 +1,7 @@
 <template>
   <ElDialog
     v-model="dialogVisible"
-    :title="localForm.id ? 'Edit Coupon' : 'Create Coupon'"
+    :title="localForm.id ? '编辑优惠码' : '新增优惠码'"
     width="720px"
     destroy-on-close
     align-center
@@ -9,17 +9,13 @@
     <ElForm label-position="top">
       <ElRow :gutter="12">
         <ElCol :xs="24" :md="12">
-          <ElFormItem label="Coupon Code">
-            <ElInput
-              v-model.trim="localForm.code"
-              :maxlength="INPUT_LIMITS.COUPON_CODE"
-              placeholder="Enter coupon code"
-            />
+          <ElFormItem label="优惠码">
+            <ElInput v-model.trim="localForm.code" placeholder="请输入优惠码" />
           </ElFormItem>
         </ElCol>
 
         <ElCol :xs="24" :md="12">
-          <ElFormItem label="Discount (permille)">
+          <ElFormItem label="折扣（千分比）">
             <ElInputNumber
               v-model="localForm.discount_permille"
               :min="1"
@@ -30,12 +26,12 @@
         </ElCol>
 
         <ElCol :xs="24" :md="12">
-          <ElFormItem label="Coupon Group">
+          <ElFormItem label="商品组">
             <ElSelect
               v-model="localForm.product_group_id"
               filterable
               class="full-width"
-              placeholder="Select coupon group"
+              placeholder="请选择商品组"
             >
               <ElOption
                 v-for="item in groupOptions"
@@ -48,54 +44,41 @@
         </ElCol>
 
         <ElCol :xs="24" :md="6">
-          <ElFormItem label="Total Limit">
+          <ElFormItem label="总使用次数">
             <ElInputNumber v-model="localForm.total_limit" class="full-width" />
           </ElFormItem>
         </ElCol>
 
         <ElCol :xs="24" :md="6">
-          <ElFormItem label="Per User Limit">
+          <ElFormItem label="每用户次数">
             <ElInputNumber v-model="localForm.per_user_limit" class="full-width" />
           </ElFormItem>
         </ElCol>
 
         <ElCol :xs="12" :md="6">
-          <ElFormItem label="New Users Only">
+          <ElFormItem label="仅新用户">
             <ElSwitch v-model="localForm.new_user_only" />
           </ElFormItem>
         </ElCol>
 
         <ElCol :xs="12" :md="6">
-          <ElFormItem label="Active">
+          <ElFormItem label="启用">
             <ElSwitch v-model="localForm.active" />
           </ElFormItem>
         </ElCol>
       </ElRow>
-
-      <ElFormItem label="Note">
-        <ElInput
-          v-model.trim="localForm.note"
-          type="textarea"
-          :rows="4"
-          :maxlength="INPUT_LIMITS.COUPON_NOTE"
-          show-word-limit
-          placeholder="Optional note for this coupon"
-        />
-      </ElFormItem>
     </ElForm>
 
     <template #footer>
       <div class="dialog-footer">
-        <ElButton @click="dialogVisible = false">Cancel</ElButton>
-        <ElButton type="primary" :loading="submitting" @click="handleSubmit">Save</ElButton>
+        <ElButton @click="dialogVisible = false">取消</ElButton>
+        <ElButton type="primary" :loading="submitting" @click="handleSubmit">保存</ElButton>
       </div>
     </template>
   </ElDialog>
 </template>
 
 <script setup lang="ts">
-  import { INPUT_LIMITS } from '@/constants/inputLimits'
-
   defineOptions({ name: 'CouponDialog' })
 
   interface CouponFormValue {

@@ -1,31 +1,9 @@
 <template>
   <div class="payments-page art-full-height">
-    <ArtSearchBar
-      v-show="showSearchBar"
-      v-model="searchForm"
-      :items="searchItems"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="resetSearchParams"
-    />
+    <ElCard class="art-table-card">
+      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData" />
 
-    <ElCard class="art-table-card" :style="{ marginTop: showSearchBar ? '12px' : '0' }">
-      <ArtTableHeader
-        v-model:columns="columnChecks"
-        v-model:show-search-bar="showSearchBar"
-        :loading="loading"
-        @refresh="refreshData"
-      />
-
-      <ArtTable
-        row-key="key"
-        :loading="loading"
-        :data="data"
-        :columns="columns"
-        :pagination="pagination"
-        @pagination:size-change="handleSizeChange"
-        @pagination:current-change="handleCurrentChange"
-      >
+      <ArtTable row-key="key" :loading="loading" :data="data" :columns="columns">
         <template #type="{ row }">
           <ElTag :type="row.type === 'plugin' ? 'primary' : 'info'">
             {{ row.type === 'plugin' ? '插件' : '内置' }}
@@ -64,16 +42,6 @@
 
   defineOptions({ name: 'AdminSettingsPayments' })
 
-  interface SearchForm {
-    keyword?: string
-    type?: string
-  }
-
-  interface TableParams extends SearchForm {
-    current: number
-    size: number
-  }
-
   interface PaymentRow {
     type: 'builtin' | 'plugin'
     key: string
@@ -85,63 +53,17 @@
     busy_wallet: boolean
   }
 
-  const showSearchBar = ref(true)
-  const searchForm = ref<SearchForm>({ keyword: '', type: undefined })
   const { hasPermission } = useAdminPermissions()
-  const canUpdate = hasPermission('settings.update', 'payment.update')
+  const canUpdate = hasPermission('payment.update')
 
-  const searchItems = computed(() => [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '名称或 Key' }
-    },
-    {
-      key: 'type',
-      label: '类型',
-      type: 'select',
-      props: {
-        clearable: true,
-        options: [
-          { label: '内置', value: 'builtin' },
-          { label: '插件', value: 'plugin' }
-        ]
-      }
-    }
-  ])
-
-  const fetchPaymentRows = async (params: TableParams) => {
-    const allRows = await buildRows()
-    const keyword = String(params.keyword ?? '')
-      .trim()
-      .toLowerCase()
-    let rows = allRows
-    if (keyword) {
-      rows = rows.filter((row) => `${row.name} ${row.key}`.toLowerCase().includes(keyword))
-    }
-    if (params.type) rows = rows.filter((row) => row.type === params.type)
-    const start = (params.current - 1) * params.size
-    return { records: rows.slice(start, start + params.size), total: rows.length }
+  const fetchPaymentRows = async () => {
+    const rows = await buildRows()
+    return { records: rows, total: rows.length }
   }
 
-  const {
-    columns,
-    columnChecks,
-    data,
-    loading,
-    pagination,
-    getData,
-    searchParams,
-    resetSearchParams,
-    handleSizeChange,
-    handleCurrentChange,
-    refreshData,
-    refreshUpdate
-  } = useTable({
+  const { columns, columnChecks, data, loading, refreshData, refreshUpdate } = useTable({
     core: {
       apiFn: fetchPaymentRows,
-      apiParams: { current: 1, size: 20, ...searchForm.value },
       columnsFactory: () => [
         { prop: 'type', label: '类型', width: 100, useSlot: true },
         { prop: 'name', label: '名称', minWidth: 220, showOverflowTooltip: true },
@@ -151,11 +73,6 @@
       ]
     }
   })
-
-  function handleSearch(params: SearchForm): void {
-    Object.assign(searchParams, params)
-    getData()
-  }
 
   function manifestMethods(plugin: PluginListItem): string[] {
     return [...new Set(plugin.manifest?.capabilities?.payment?.methods?.map(String) ?? [])].filter(

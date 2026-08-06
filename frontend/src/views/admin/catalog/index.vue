@@ -1,19 +1,9 @@
 <template>
   <div v-loading="loading" class="catalog-page art-full-height">
-    <ArtSearchBar
-      v-if="canView"
-      v-model="searchForm"
-      :items="searchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="handleReset"
-    />
-
     <ElCard shadow="never">
       <div class="page-header">
         <div>
-          <div class="page-title">Catalog</div>
+          <div class="page-title">售卖配置</div>
           <div class="page-subtitle">管理商品类型、地区、线路、套餐、镜像和计费周期。</div>
         </div>
 
@@ -33,7 +23,13 @@
               :value="item.value"
             />
           </ElSelect>
-          <ElButton :disabled="!goodsTypeId" @click="syncCurrentGoodsType">同步当前类型</ElButton>
+          <ElButton
+            v-if="hasPermission('goods_type.sync')"
+            :disabled="!goodsTypeId"
+            @click="syncCurrentGoodsType"
+          >
+            同步当前类型
+          </ElButton>
           <ElButton @click="refreshData()">刷新</ElButton>
         </div>
       </div>
@@ -71,16 +67,16 @@
               </div>
             </div>
 
-            <ArtTable :data="filteredGoodsTypes" border row-key="id">
-              <ElTableColumn prop="id" label="ID" width="90" />
-              <ElTableColumn prop="name" label="名称" min-width="180" />
-              <ElTableColumn prop="code" label="代码" min-width="150" />
+            <ArtTable :data="goodsTypes" border row-key="id">
+              <ElTableColumn prop="id" label="ID" width="90" sortable />
+              <ElTableColumn prop="name" label="名称" min-width="180" sortable />
+              <ElTableColumn prop="code" label="代码" min-width="150" sortable />
               <ElTableColumn label="自动化实例" min-width="220">
                 <template #default="{ row }">{{
                   formatAutomationBinding(row as GoodsTypeRow)
                 }}</template>
               </ElTableColumn>
-              <ElTableColumn prop="sort_order" label="排序" width="90" />
+              <ElTableColumn prop="sort_order" label="排序" width="90" sortable />
               <ElTableColumn label="状态" width="100">
                 <template #default="{ row }">
                   <ElTag :type="row.active ? 'success' : 'danger'">{{
@@ -131,9 +127,7 @@
             <div class="toolbar">
               <div class="toolbar-actions">
                 <ElButton
-                  v-if="
-                    !isCatalogReadonly && hasPermission(['region.delete', 'region.bulk_delete'])
-                  "
+                  v-if="!isCatalogReadonly && hasPermission('region.bulk_delete')"
                   :disabled="!selectedRegionIds.length"
                   type="danger"
                   @click="removeSelectedRegions"
@@ -152,19 +146,19 @@
             </div>
 
             <ArtTable
-              :data="filteredRegions"
+              :data="regions"
               border
               row-key="id"
               @selection-change="onRegionSelectionChange"
             >
               <ElTableColumn
-                v-if="!isCatalogReadonly && hasPermission(['region.delete', 'region.bulk_delete'])"
+                v-if="!isCatalogReadonly && hasPermission('region.bulk_delete')"
                 type="selection"
                 width="48"
               />
-              <ElTableColumn prop="id" label="ID" width="90" />
-              <ElTableColumn prop="name" label="名称" min-width="180" />
-              <ElTableColumn prop="code" label="代码" min-width="140" />
+              <ElTableColumn prop="id" label="ID" width="90" sortable />
+              <ElTableColumn prop="name" label="名称" min-width="180" sortable />
+              <ElTableColumn prop="code" label="代码" min-width="140" sortable />
               <ElTableColumn label="状态" width="100">
                 <template #default="{ row }">
                   <ElTag :type="row.active ? 'success' : 'danger'">{{
@@ -208,10 +202,7 @@
             <div class="toolbar">
               <div class="toolbar-actions">
                 <ElButton
-                  v-if="
-                    !isCatalogReadonly &&
-                    hasPermission(['plan_group.delete', 'plan_group.bulk_delete'])
-                  "
+                  v-if="!isCatalogReadonly && hasPermission('plan_group.bulk_delete')"
                   :disabled="!selectedPlanGroupIds.length"
                   type="danger"
                   @click="removeSelectedPlanGroups"
@@ -230,25 +221,26 @@
             </div>
 
             <ArtTable
-              :data="filteredPlanGroups"
+              :data="planGroups"
               border
               row-key="id"
               @selection-change="onPlanGroupSelectionChange"
             >
               <ElTableColumn
-                v-if="
-                  !isCatalogReadonly &&
-                  hasPermission(['plan_group.delete', 'plan_group.bulk_delete'])
-                "
+                v-if="!isCatalogReadonly && hasPermission('plan_group.bulk_delete')"
                 type="selection"
                 width="48"
               />
-              <ElTableColumn prop="id" label="ID" width="90" />
+              <ElTableColumn prop="id" label="ID" width="90" sortable />
               <ElTableColumn label="地区" min-width="160">
                 <template #default="{ row }">{{ getRegionName(row.region_id) }}</template>
               </ElTableColumn>
-              <ElTableColumn prop="name" label="名称" min-width="180" />
-              <ElTableColumn prop="line_id" label="云线路 ID" width="120" />
+              <ElTableColumn prop="name" label="名称" min-width="180" sortable />
+              <ElTableColumn prop="line_id" label="云线路 ID" width="120" sortable />
+              <ElTableColumn prop="unit_core" label="CPU 单价" width="110" sortable />
+              <ElTableColumn prop="unit_mem" label="内存单价" width="110" sortable />
+              <ElTableColumn prop="unit_disk" label="磁盘单价" width="110" sortable />
+              <ElTableColumn prop="unit_bw" label="带宽单价" width="110" sortable />
               <ElTableColumn label="可见" width="90">
                 <template #default="{ row }"
                   ><ElTag :type="row.visible ? 'success' : 'info'">{{
@@ -274,10 +266,7 @@
                 <template #default="{ row }">
                   <div class="table-actions">
                     <ElButton
-                      v-if="
-                        isCatalogReadonly &&
-                        hasPermission(['plan_group.update', 'plan_group.set_system_images'])
-                      "
+                      v-if="isCatalogReadonly && hasPermission('plan_group.update')"
                       link
                       :type="row.active ? 'danger' : 'primary'"
                       @click="togglePlanGroupActive(row as PlanGroupRow)"
@@ -286,7 +275,7 @@
                     </ElButton>
                     <template v-else>
                       <ElButton
-                        v-if="hasPermission(['plan_group.update', 'plan_group.set_system_images'])"
+                        v-if="hasPermission('plan_group.update')"
                         link
                         type="primary"
                         @click="openPlanGroupDialog(row as PlanGroupRow)"
@@ -326,7 +315,7 @@
               </div>
               <div class="toolbar-actions">
                 <ElButton
-                  v-if="hasPermission(['package.delete', 'package.bulk_delete'])"
+                  v-if="hasPermission('package.bulk_delete')"
                   :disabled="!selectedPackageIds.length"
                   type="danger"
                   @click="removeSelectedPackages"
@@ -350,18 +339,18 @@
             </div>
 
             <ArtTable
-              :data="filteredPackages"
+              :data="packages"
               border
               row-key="id"
               @selection-change="onPackageSelectionChange"
             >
               <ElTableColumn
-                v-if="hasPermission(['package.delete', 'package.bulk_delete'])"
+                v-if="hasPermission('package.bulk_delete')"
                 type="selection"
                 width="48"
               />
-              <ElTableColumn prop="id" label="ID" width="90" />
-              <ElTableColumn prop="name" label="名称" min-width="180" />
+              <ElTableColumn prop="id" label="ID" width="90" sortable />
+              <ElTableColumn prop="name" label="名称" min-width="180" sortable />
               <ElTableColumn label="线路" min-width="160"
                 ><template #default="{ row }">{{
                   getPlanGroupName(row.plan_group_id)
@@ -373,7 +362,7 @@
                   {{ row.bandwidth_mbps }}M</template
                 ></ElTableColumn
               >
-              <ElTableColumn prop="monthly_price" label="月费" width="120" />
+              <ElTableColumn prop="monthly_price" label="月费" width="120" sortable />
               <ElTableColumn prop="port_num" label="端口数" width="90" />
               <ElTableColumn label="状态" width="100"
                 ><template #default="{ row }"
@@ -382,6 +371,12 @@
                   }}</ElTag></template
                 ></ElTableColumn
               >
+              <ElTableColumn label="可见" width="90">
+                <template #default="{ row }">{{ row.visible ? '可见' : '隐藏' }}</template>
+              </ElTableColumn>
+              <ElTableColumn label="余量" width="100">
+                <template #default="{ row }">{{ formatCapacity(row.capacity_remaining) }}</template>
+              </ElTableColumn>
               <ElTableColumn label="操作" width="150" fixed="right">
                 <template #default="{ row }">
                   <div class="table-actions">
@@ -425,7 +420,7 @@
               </div>
               <div class="toolbar-actions">
                 <ElButton
-                  v-if="hasPermission(['system_image.delete', 'system_image.bulk_delete'])"
+                  v-if="hasPermission('system_image.bulk_delete')"
                   :disabled="!selectedSystemImageIds.length"
                   type="danger"
                   @click="removeSelectedSystemImages"
@@ -453,7 +448,7 @@
               @selection-change="onSystemImageSelectionChange"
             >
               <ElTableColumn
-                v-if="hasPermission(['system_image.delete', 'system_image.bulk_delete'])"
+                v-if="hasPermission('system_image.bulk_delete')"
                 type="selection"
                 width="48"
               />
@@ -501,7 +496,7 @@
             <div class="toolbar">
               <div class="toolbar-actions">
                 <ElButton
-                  v-if="hasPermission(['billing_cycle.delete', 'billing_cycle.bulk_delete'])"
+                  v-if="hasPermission('billing_cycle.bulk_delete')"
                   :disabled="!selectedBillingCycleIds.length"
                   type="danger"
                   @click="removeSelectedBillingCycles"
@@ -517,13 +512,13 @@
             </div>
 
             <ArtTable
-              :data="filteredBillingCycles"
+              :data="billingCycles"
               border
               row-key="id"
               @selection-change="onBillingCycleSelectionChange"
             >
               <ElTableColumn
-                v-if="hasPermission(['billing_cycle.delete', 'billing_cycle.bulk_delete'])"
+                v-if="hasPermission('billing_cycle.bulk_delete')"
                 type="selection"
                 width="48"
               />
@@ -571,6 +566,7 @@
       :form-data="goodsTypeForm"
       :automation-options="automationOptions"
       :schema-json="automationConfigSchemaJson"
+      :ui-schema-json="automationConfigUiSchemaJson"
       :config-json="automationConfigJson"
       :config-error="automationConfigError"
       :config-loading="automationConfigLoading"
@@ -657,7 +653,6 @@
     fetchAdminPlugins,
     fetchAdminRegions,
     fetchAdminSystemImages,
-    hasAdminPermission,
     setAdminLineSystemImages,
     syncAdminGoodsTypeAutomation,
     syncAdminSystemImages,
@@ -670,8 +665,8 @@
     updateAdminRegion,
     updateAdminSystemImage
   } from '@/services/admin'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { useTable } from '@/hooks/core/useTable'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import BillingCycleDialog from './modules/billing-cycle-dialog.vue'
   import GoodsTypeDialog from './modules/goods-type-dialog.vue'
@@ -727,6 +722,7 @@
     visible: boolean
     capacity_remaining: number
     sort_order: number
+    system_image_count: number
   }
 
   interface PackageRow {
@@ -896,24 +892,12 @@
     key: string
   }
 
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
+  const { hasAuth } = useAuth()
 
   const activeTab = ref('goods-types')
   const goodsTypeId = ref<number | null>(null)
   const packagePlanGroupFilter = ref<SelectFilterValue>('all')
   const imagePlanGroupFilter = ref<number | null>(null)
-  const searchForm = ref({ keyword: '' })
-  const activeSearchKeyword = ref('')
-  const searchItems = [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '搜索当前分类的名称、代码或 ID' }
-    }
-  ]
-
   const goodsTypes = ref<GoodsTypeRow[]>([])
   const regions = ref<RegionRow[]>([])
   const planGroups = ref<PlanGroupRow[]>([])
@@ -922,6 +906,7 @@
   const scopedSystemImages = ref<SystemImageRow[]>([])
   const billingCycles = ref<BillingCycleRow[]>([])
   const automationPlugins = ref<AdminPluginRecord[]>([])
+  const imageCountByPlanGroup = ref(new Map<number, number>())
 
   const selectedRegionIds = ref<number[]>([])
   const selectedPlanGroupIds = ref<number[]>([])
@@ -954,6 +939,7 @@
   const generatedPackages = ref<GeneratedPackageRow[]>([])
 
   const automationConfigSchemaJson = ref('{}')
+  const automationConfigUiSchemaJson = ref('{}')
   const automationConfigJson = ref('{}')
   const automationConfigError = ref('')
   const automationConfigLoading = ref(false)
@@ -963,8 +949,7 @@
   const {
     loading,
     columnChecks: catalogColumnChecks,
-    refreshData,
-    resetSearchParams
+    refreshData
   } = useTable({
     core: {
       apiFn: fetchCatalogTable,
@@ -975,21 +960,27 @@
   })
 
   const canView = computed(() =>
-    hasAdminPermission(info.value?.permissions, [
+    [
       'goods_type.list',
       'region.list',
       'plan_group.list',
       'package.list',
       'system_image.list',
       'billing_cycle.list'
-    ])
+    ].some((permission) => hasAuth(permission))
   )
 
   const goodsTypeOptions = computed(() =>
-    goodsTypes.value.map((item) => ({
-      value: Number(item.id),
-      label: item.code ? `${item.name} (${item.code})` : item.name
-    }))
+    goodsTypes.value
+      .filter((item) => item.active && item.id !== null)
+      .slice()
+      .sort(
+        (left, right) => left.sort_order - right.sort_order || Number(left.id) - Number(right.id)
+      )
+      .map((item) => ({
+        value: Number(item.id),
+        label: item.code ? `${item.name} (${item.code})` : item.name
+      }))
   )
 
   const regionOptions = computed(() =>
@@ -1006,7 +997,7 @@
       .filter((item) => item.id !== null)
       .map((item) => ({
         value: Number(item.id),
-        label: `${item.name}${item.line_id ? ` / ${item.line_id}` : ''}`
+        label: `${item.name}${item.line_id ? ` / ${item.line_id}` : ''}（${imageCountByPlanGroup.value.get(Number(item.id)) ?? 0} 个镜像）`
       }))
   )
 
@@ -1036,23 +1027,8 @@
     return Boolean(plugin?.manifest?.capabilities?.automation?.catalog_readonly)
   })
 
-  const filteredGoodsTypes = computed(() => filterCatalogRows(goodsTypes.value))
-  const filteredRegions = computed(() => filterCatalogRows(regions.value))
-  const filteredPlanGroups = computed(() => filterCatalogRows(planGroups.value))
-  const filteredBillingCycles = computed(() => filterCatalogRows(billingCycles.value))
-
-  const filteredPackages = computed(() => {
-    const filtered =
-      !packagePlanGroupFilter.value || packagePlanGroupFilter.value === 'all'
-        ? packages.value
-        : packages.value.filter(
-            (item) => Number(item.plan_group_id) === Number(packagePlanGroupFilter.value)
-          )
-    return filterCatalogRows(filtered)
-  })
-
   const displaySystemImages = computed(() =>
-    filterCatalogRows(imagePlanGroupFilter.value ? scopedSystemImages.value : systemImages.value)
+    imagePlanGroupFilter.value ? scopedSystemImages.value : systemImages.value
   )
 
   const systemImageOptions = computed(() =>
@@ -1068,29 +1044,8 @@
     initializePage()
   })
 
-  function filterCatalogRows<T extends object>(rows: T[]) {
-    const keyword = activeSearchKeyword.value.trim().toLowerCase()
-    if (!keyword) return rows
-    return rows.filter((row) => {
-      const record = row as Record<string, unknown>
-      return [record.id, record.name, record.code, record.line_id, record.image_id]
-        .filter((value) => value !== null && value !== undefined)
-        .some((value) => String(value).toLowerCase().includes(keyword))
-    })
-  }
-
-  function handleSearch(params: { keyword?: string }) {
-    activeSearchKeyword.value = String(params.keyword || '')
-  }
-
-  async function handleReset() {
-    searchForm.value = { keyword: '' }
-    activeSearchKeyword.value = ''
-    await resetSearchParams()
-  }
-
-  function hasPermission(required: string | string[]) {
-    return hasAdminPermission(info.value?.permissions, required)
+  function hasPermission(required: string) {
+    return hasAuth(required)
   }
 
   function createDefaultGoodsTypeForm(): GoodsTypeFormValue {
@@ -1239,19 +1194,20 @@
     return {
       id: toNullableNumber(item?.id ?? item?.ID),
       goods_type_id: toNullableNumber(item?.goods_type_id ?? item?.GoodsTypeID),
-      name: String(item?.name ?? item?.Name ?? ''),
+      name: String(item?.name ?? item?.Name ?? item?.line_name ?? item?.LineName ?? ''),
       code: String(item?.code ?? item?.Code ?? ''),
       active: toBoolean(item?.active ?? item?.Active, true)
     }
   }
 
   function normalizePlanGroup(item: any): PlanGroupRow {
+    const id = toNullableNumber(item?.id ?? item?.ID)
     return {
-      id: toNullableNumber(item?.id ?? item?.ID),
+      id,
       goods_type_id: toNullableNumber(item?.goods_type_id ?? item?.GoodsTypeID),
       region_id: toNullableNumber(item?.region_id ?? item?.RegionID),
       line_id: toNullableNumber(item?.line_id ?? item?.LineID),
-      name: String(item?.name ?? item?.Name ?? ''),
+      name: String(item?.name ?? item?.Name ?? item?.line_name ?? item?.LineName ?? ''),
       unit_core: toNumber(item?.unit_core ?? item?.UnitCore, 0),
       unit_mem: toNumber(item?.unit_mem ?? item?.UnitMem, 0),
       unit_disk: toNumber(item?.unit_disk ?? item?.UnitDisk, 0),
@@ -1271,7 +1227,11 @@
       active: toBoolean(item?.active ?? item?.Active, true),
       visible: toBoolean(item?.visible ?? item?.Visible, true),
       capacity_remaining: toNumber(item?.capacity_remaining ?? item?.CapacityRemaining, -1),
-      sort_order: toNumber(item?.sort_order ?? item?.SortOrder, 0)
+      sort_order: toNumber(item?.sort_order ?? item?.SortOrder, 0),
+      system_image_count: toNumber(
+        item?.system_image_count ?? item?.SystemImageCount ?? item?.image_count ?? item?.ImageCount,
+        0
+      )
     }
   }
 
@@ -1386,6 +1346,7 @@
 
   function resetAutomationConfigState() {
     automationConfigSchemaJson.value = '{}'
+    automationConfigUiSchemaJson.value = '{}'
     automationConfigJson.value = '{}'
     automationConfigError.value = ''
     automationConfigLoading.value = false
@@ -1583,7 +1544,8 @@
         return
       }
 
-      automationConfigSchemaJson.value = normalizePrettyJson(schemaResponse.json_schema)
+      automationConfigSchemaJson.value = hydrateAutomationSchema(schemaResponse.json_schema)
+      automationConfigUiSchemaJson.value = normalizePrettyJson(schemaResponse.ui_schema)
       automationConfigJson.value = normalizePrettyJson(configResponse.config_json)
     } catch (error: any) {
       if (requestId !== automationConfigRequestId) {
@@ -1594,6 +1556,7 @@
         error?.response?.data?.error || error?.message || '加载自动化配置失败'
       )
       automationConfigSchemaJson.value = '{}'
+      automationConfigUiSchemaJson.value = '{}'
       automationConfigJson.value = '{}'
     } finally {
       if (requestId === automationConfigRequestId) {
@@ -1606,16 +1569,77 @@
     automationConfigJson.value = value
   }
 
+  type SchemaRecord = Record<string, unknown>
+
+  function schemaOptions(items: Array<{ id: number | null; name: string }>) {
+    return items
+      .filter((item) => item.id !== null)
+      .map((item) => ({ value: Number(item.id), label: item.name || `#${item.id}` }))
+  }
+
+  function hydrateAutomationSchema(schemaJson?: string) {
+    const root = parseObjectSchema(schemaJson)
+    if (!root) {
+      return '{}'
+    }
+
+    const optionsByKey: Record<string, Array<{ value: number; label: string }>> = {
+      goods_type_id: schemaOptions(goodsTypes.value),
+      region_id: schemaOptions(regions.value),
+      plan_group_id: schemaOptions(planGroups.value),
+      package_id: schemaOptions(packages.value),
+      billing_cycle_id: schemaOptions(billingCycles.value),
+      line_id: planGroups.value
+        .filter((item) => item.line_id !== null)
+        .map((item) => ({ value: Number(item.line_id), label: item.name || `#${item.line_id}` }))
+    }
+
+    const visit = (node: SchemaRecord) => {
+      const properties = node.properties
+      if (properties && typeof properties === 'object' && !Array.isArray(properties)) {
+        Object.entries(properties as SchemaRecord).forEach(([key, child]) => {
+          if (!child || typeof child !== 'object' || Array.isArray(child)) return
+          const childRecord = child as SchemaRecord
+          const options = optionsByKey[key]
+          if (options?.length) {
+            childRecord.enum = options.map((item) => item.value)
+            childRecord.enumNames = options.map((item) => item.label)
+          }
+          visit(childRecord)
+        })
+      }
+      if (node.items && typeof node.items === 'object' && !Array.isArray(node.items)) {
+        visit(node.items as SchemaRecord)
+      }
+    }
+
+    visit(root)
+    return JSON.stringify(root, null, 2)
+  }
+
+  function parseObjectSchema(value?: string): SchemaRecord | null {
+    try {
+      const parsed: unknown = JSON.parse(String(value || '{}'))
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as SchemaRecord)
+        : null
+    } catch {
+      return null
+    }
+  }
+
   async function submitGoodsType(form: GoodsTypeFormValue) {
-    if (!form.name.trim()) return ElMessage.error('请输入商品类型名称')
-    if (!form.code.trim()) return ElMessage.error('请输入商品类型代码')
     const pluginId = form.automation_plugin_id.trim()
     const instanceId = form.automation_instance_id.trim()
-    let configJson = ''
+    let configValue: Record<string, unknown> | null = null
 
     if (pluginId && instanceId) {
       try {
-        configJson = JSON.stringify(parseJsonText(automationConfigJson.value))
+        const parsed = parseJsonText(automationConfigJson.value)
+        configValue =
+          parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : {}
       } catch {
         automationConfigError.value = '配置 JSON 格式不正确'
         return ElMessage.error('请修正自动化配置 JSON')
@@ -1642,11 +1666,20 @@
         })
       }
       if (pluginId && instanceId) {
+        const normalizedPluginId = pluginId.toLowerCase()
+        if (
+          normalizedPluginId === 'xiaohei_proxy' &&
+          configValue &&
+          (configValue.goods_type_id === undefined || configValue.goods_type_id === null)
+        ) {
+          const fallbackGoodsTypeId = currentId ?? goodsTypeId.value
+          if (fallbackGoodsTypeId) configValue.goods_type_id = fallbackGoodsTypeId
+        }
         await updateAdminPluginInstanceConfig(
           'automation',
           pluginId,
           instanceId,
-          configJson || '{}'
+          JSON.stringify(configValue || {})
         )
       }
       goodsTypeDialogVisible.value = false
@@ -1687,7 +1720,6 @@
 
   async function submitRegion(form: RegionFormValue) {
     if (!goodsTypeId.value) return ElMessage.error('请先选择商品类型')
-    if (!form.name.trim()) return ElMessage.error('请输入地区名称')
     regionSubmitting.value = true
     try {
       const payload = {
@@ -1741,7 +1773,6 @@
 
   async function submitPlanGroup(form: PlanGroupFormValue) {
     if (!form.region_id) return ElMessage.error('请选择地区')
-    if (!form.name.trim()) return ElMessage.error('请输入线路名称')
     planGroupSubmitting.value = true
     try {
       const payload = { ...form, name: form.name.trim() }
@@ -1969,7 +2000,6 @@
 
   async function submitPackage(form: PackageFormValue) {
     if (!form.plan_group_id) return ElMessage.error('请选择线路')
-    if (!form.name.trim()) return ElMessage.error('请输入套餐名称')
     packageSubmitting.value = true
     try {
       const payload = { ...form, name: form.name.trim() }
@@ -2009,7 +2039,6 @@
 
   async function submitSystemImage(form: SystemImageFormValue) {
     if (!form.image_id || form.image_id <= 0) return ElMessage.error('镜像 ID 必须是正整数')
-    if (!form.name.trim()) return ElMessage.error('请输入镜像名称')
     systemImageSubmitting.value = true
     try {
       const payload = {
@@ -2059,7 +2088,6 @@
   }
 
   async function submitBillingCycle(form: BillingCycleFormValue) {
-    if (!form.name.trim()) return ElMessage.error('请输入周期名称')
     billingCycleSubmitting.value = true
     try {
       const payload = { ...form, name: form.name.trim() }

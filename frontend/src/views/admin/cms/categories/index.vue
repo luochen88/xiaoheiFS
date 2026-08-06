@@ -1,15 +1,5 @@
 <template>
   <div class="art-full-height">
-    <ArtSearchBar
-      v-if="canView"
-      v-model="searchForm"
-      :items="searchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="handleReset"
-    />
-
     <ElCard v-loading="loading" class="art-table-card">
       <template #header>
         <div class="page-header">
@@ -35,15 +25,7 @@
           @refresh="fetchData"
         />
 
-        <ArtTable
-          row-key="id"
-          :loading="loading"
-          :data="tableData"
-          :columns="columns"
-          :pagination="pagination"
-          @pagination:size-change="handlePageSizeChange"
-          @pagination:current-change="handlePageCurrentChange"
-        >
+        <ArtTable row-key="id" :loading="loading" :data="tableData" :columns="columns">
           <template #visible="{ row }">
             <ElSwitch
               :model-value="row.visible"
@@ -77,17 +59,12 @@
           <ElInput
             v-model.trim="dialogForm.key"
             :disabled="dialogMode === 'edit'"
-            :maxlength="INPUT_LIMITS.CMS_KEY"
             placeholder="docs"
           />
         </ElFormItem>
 
         <ElFormItem label="显示名称" prop="name">
-          <ElInput
-            v-model.trim="dialogForm.name"
-            :maxlength="INPUT_LIMITS.CMS_NAME"
-            placeholder="文档中心"
-          />
+          <ElInput v-model.trim="dialogForm.name" placeholder="文档中心" />
         </ElFormItem>
 
         <ElRow :gutter="12">
@@ -134,12 +111,10 @@
     createCMSCategory,
     deleteCMSCategory,
     fetchCMSCategories,
-    hasAdminPermission,
     updateCMSCategory
   } from '@/services/admin'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { useTable } from '@/hooks/core/useTable'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
-  import { INPUT_LIMITS } from '@/constants/inputLimits'
   import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 
   defineOptions({ name: 'CmsCategoriesPage' })
@@ -156,12 +131,7 @@
     switching?: boolean
   }
 
-  interface CategorySearchForm {
-    keyword: string
-    lang?: string
-  }
-
-  interface CategoryTableParams extends Api.Common.CommonSearchParams, CategorySearchForm {}
+  type CategoryTableParams = Api.Common.CommonSearchParams
 
   interface CategoryDialogForm {
     id: number | null
@@ -177,49 +147,26 @@
     { label: '英文', value: 'en-US' }
   ]
 
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
+  const { hasAuth } = useAuth()
 
   const initialized = ref(false)
   const dialogVisible = ref(false)
   const dialogSubmitting = ref(false)
   const dialogMode = ref<'create' | 'edit'>('create')
 
-  const searchForm = ref<CategorySearchForm>({ keyword: '', lang: undefined })
   const dialogForm = reactive<CategoryDialogForm>(createDefaultDialogForm())
   const formRef = ref<FormInstance>()
-
-  const searchItems = [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '按标识或名称搜索' }
-    },
-    {
-      key: 'lang',
-      label: '语言',
-      type: 'select',
-      props: { clearable: true, placeholder: '全部语言', options: languageOptions }
-    }
-  ]
 
   const {
     columnChecks,
     columns,
     data: tableData,
     loading,
-    pagination,
-    searchParams,
-    getData,
-    fetchData,
-    resetSearchParams,
-    handleSizeChange: handlePageSizeChange,
-    handleCurrentChange: handlePageCurrentChange
+    fetchData
   } = useTable({
     core: {
       apiFn: fetchCategoryTable,
-      apiParams: { current: 1, size: 20, ...searchForm.value },
+      apiParams: { current: 1, size: 1000 },
       immediate: false,
       columnsFactory: () => [
         { prop: 'id', label: 'ID', width: 80 },
@@ -239,35 +186,14 @@
     }
   })
 
-  const canView = computed(() => hasAdminPermission(info.value?.permissions, ['cms_category.list']))
-  const canCreate = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['cms_category.create'])
-  )
-  const canUpdate = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['cms_category.update'])
-  )
-  const canDelete = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['cms_category.delete'])
-  )
+  const canView = computed(() => hasAuth('cms_category.list'))
+  const canCreate = computed(() => hasAuth('cms_category.create'))
+  const canUpdate = computed(() => hasAuth('cms_category.update'))
+  const canDelete = computed(() => hasAuth('cms_category.delete'))
 
   const rules = computed<FormRules>(() => ({
-    key: [
-      { required: true, message: '请输入分类标识', trigger: 'blur' },
-      {
-        max: INPUT_LIMITS.CMS_KEY,
-        message: `分类标识长度不能超过 ${INPUT_LIMITS.CMS_KEY} 个字符`,
-        trigger: 'blur'
-      }
-    ],
-    name: [
-      { required: true, message: '请输入显示名称', trigger: 'blur' },
-      {
-        max: INPUT_LIMITS.CMS_NAME,
-        message: `显示名称长度不能超过 ${INPUT_LIMITS.CMS_NAME} 个字符`,
-        trigger: 'blur'
-      }
-    ],
-    lang: [{ required: true, message: '请选择语言', trigger: 'change' }]
+    key: [{ required: true, message: '请输入分类标识', trigger: 'blur' }],
+    name: [{ required: true, message: '请输入显示名称', trigger: 'blur' }]
   }))
 
   watch(
@@ -335,35 +261,15 @@
       return { records: [], current: params.current, size: params.size, total: 0 }
     }
 
-    const payload = await fetchCMSCategories({ lang: params.lang || undefined })
-    const keyword = String(params.keyword || '')
-      .trim()
-      .toLowerCase()
-    const records = (payload.items || [])
-      .map((item) => normalizeRow(item))
-      .filter((row) => {
-        return (
-          !keyword || [row.key, row.name].some((value) => value.toLowerCase().includes(keyword))
-        )
-      })
-    const start = (params.current - 1) * params.size
+    const payload = await fetchCMSCategories()
+    const records = (payload.items || []).map((item) => normalizeRow(item))
 
     return {
-      records: records.slice(start, start + params.size),
+      records,
       current: params.current,
       size: params.size,
       total: records.length
     }
-  }
-
-  async function handleSearch(params: CategorySearchForm) {
-    Object.assign(searchParams, params)
-    await getData()
-  }
-
-  async function handleReset() {
-    searchForm.value = { keyword: '', lang: undefined }
-    await resetSearchParams()
   }
 
   function openCreate() {
@@ -418,6 +324,8 @@
 
       dialogVisible.value = false
       await fetchData()
+    } catch (error: any) {
+      ElMessage.error(error?.response?.data?.error || '操作失败')
     } finally {
       dialogSubmitting.value = false
     }

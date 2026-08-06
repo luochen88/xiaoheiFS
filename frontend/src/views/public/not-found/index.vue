@@ -7,7 +7,7 @@
     </div>
     <span class="not-found-page__eyebrow">PAGE NOT FOUND</span>
     <h1>页面未找到</h1>
-    <p>抱歉，您访问的页面不存在、已被移除，或地址输入有误。</p>
+    <p>抱歉，您访问的页面不存在或已被移除</p>
     <div class="not-found-page__actions">
       <ElButton type="primary" @click="router.push('/')">
         <ArtSvgIcon icon="ri:home-5-line" />

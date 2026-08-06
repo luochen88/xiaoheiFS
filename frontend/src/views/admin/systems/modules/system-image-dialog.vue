@@ -14,7 +14,6 @@
       <ElFormItem :label="t('systemImage.dialog.name')">
         <ElInput
           v-model.trim="localForm.name"
-          :maxlength="120"
           :placeholder="t('systemImage.dialog.namePlaceholder')"
         />
       </ElFormItem>
@@ -49,7 +48,6 @@
 <script setup lang="ts">
   import { useSystemImageDialogBinding } from '@/components/business/system-image-dialog/model'
   import type { SystemImageDialogFormValue } from '@/components/business/system-image-dialog/model'
-  import { useI18n } from 'vue-i18n'
 
   defineOptions({ name: 'SystemsImageDialog' })
 
@@ -68,7 +66,20 @@
     submitting: false
   })
   const emit = defineEmits<Emits>()
-  const { t } = useI18n()
+
+  const texts: Record<string, string> = {
+    'systemImage.dialog.editTitle': '编辑系统镜像',
+    'systemImage.dialog.createTitle': '新增系统镜像',
+    'systemImage.dialog.imageId': '镜像 ID',
+    'systemImage.dialog.name': '名称',
+    'systemImage.dialog.namePlaceholder': '请输入镜像名称',
+    'systemImage.dialog.type': '类型',
+    'systemImage.dialog.typePlaceholder': '请选择镜像类型',
+    'systemImage.dialog.enabled': '启用',
+    'systemImage.dialog.save': '保存',
+    'common.cancel': '取消'
+  }
+  const t = (key: string) => texts[key] || key
 
   const { localForm, dialogVisible } = useSystemImageDialogBinding(props, (value) =>
     emit('update:visible', value)

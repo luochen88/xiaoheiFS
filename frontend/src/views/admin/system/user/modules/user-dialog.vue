@@ -189,7 +189,6 @@
 
   const rules = computed<FormRules>(() => ({
     username: [
-      { required: true, message: '请输入用户名', trigger: 'blur' },
       {
         max: INPUT_LIMITS.USERNAME,
         message: `用户名长度不能超过 ${INPUT_LIMITS.USERNAME} 个字符`,
@@ -197,8 +196,6 @@
       }
     ],
     email: [
-      { required: true, message: '请输入邮箱', trigger: 'blur' },
-      { type: 'email', message: '请输入正确的邮箱地址', trigger: ['blur', 'change'] },
       {
         max: INPUT_LIMITS.EMAIL,
         message: `邮箱长度不能超过 ${INPUT_LIMITS.EMAIL} 个字符`,
@@ -214,7 +211,6 @@
           }
         ]
       : [
-          { required: true, message: '请输入密码', trigger: 'blur' },
           {
             max: INPUT_LIMITS.PASSWORD,
             message: `密码长度不能超过 ${INPUT_LIMITS.PASSWORD} 个字符`,

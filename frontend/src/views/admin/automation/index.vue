@@ -61,7 +61,7 @@
               </ElTag>
             </ElDescriptionsItem>
             <ElDescriptionsItem label="超时时间（秒）">
-              {{ config.timeout_sec ?? 12 }}
+              {{ config.timeout_sec ?? 15 }}
             </ElDescriptionsItem>
             <ElDescriptionsItem label="重试次数">{{ config.retry ?? 0 }}</ElDescriptionsItem>
             <ElDescriptionsItem label="插件 ID">
@@ -104,15 +104,6 @@
       </ElCol>
     </ElRow>
 
-    <ArtSearchBar
-      v-model="logSearchForm"
-      :items="logSearchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleLogSearch"
-      @reset="handleLogReset"
-    />
-
     <ElCard shadow="never" class="section-card art-table-card">
       <template #header>
         <div class="section-header">
@@ -132,15 +123,7 @@
         @refresh="refreshLogs"
       />
 
-      <ArtTable
-        :data="logs"
-        :columns="columns"
-        :pagination="pagination"
-        :loading="logsLoading"
-        row-key="id"
-        @pagination:size-change="handleSizeChange"
-        @pagination:current-change="handleCurrentChange"
-      >
+      <ArtTable :data="logs" :columns="columns" :loading="logsLoading" row-key="id">
         <template #status="{ row }">
           <ElTag :type="getLogTagType(row.status)">{{ formatLogStatus(row.status) }}</ElTag>
         </template>
@@ -159,23 +142,16 @@
     fetchAdminAutomationSyncLogs,
     fetchAdminLines,
     fetchAdminPackages,
-    fetchAdminSystemImages,
-    hasAdminPermission
+    fetchAdminSystemImages
   } from '@/services/admin'
   import { useTable } from '@/hooks/core/useTable'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { ElMessage } from 'element-plus'
 
   defineOptions({ name: 'AutomationPage' })
 
-  interface AutomationLogTableParams extends Api.Common.CommonSearchParams {
-    keyword: string
-    status?: string
-  }
-
   const router = useRouter()
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
+  const { hasAuth } = useAuth()
 
   const configLoading = ref(false)
   const statsLoading = ref(false)
@@ -184,7 +160,7 @@
     base_url: '',
     api_key: '',
     enabled: false,
-    timeout_sec: 12,
+    timeout_sec: 15,
     retry: 0,
     dry_run: false,
     configured: false,
@@ -194,49 +170,20 @@
     plugin_id: '',
     instance_id: ''
   })
-  const logSearchForm = ref({ keyword: '', status: undefined as string | undefined })
-  const logSearchItems = [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '搜索模式或消息' }
-    },
-    {
-      key: 'status',
-      label: '状态',
-      type: 'select',
-      props: {
-        clearable: true,
-        options: [
-          { label: '成功', value: 'success' },
-          { label: '失败', value: 'failed' },
-          { label: '运行中', value: 'running' }
-        ]
-      }
-    }
-  ]
-
   const {
     columnChecks,
     columns,
     data: logs,
     loading: logsLoading,
-    pagination,
-    searchParams,
-    getData: refreshLogs,
-    resetSearchParams,
-    handleSizeChange,
-    handleCurrentChange
+    getData: loadLogs
   } = useTable({
     core: {
       apiFn: fetchLogTable,
-      apiParams: { current: 1, size: 20, keyword: '', status: undefined },
+      apiParams: { current: 1, size: 200 },
       immediate: false,
       columnsFactory: () => [
         { prop: 'id', label: 'ID', width: 80 },
         { prop: 'status', label: '状态', width: 120, useSlot: true },
-        { prop: 'mode', label: '模式', width: 120 },
         { prop: 'message', label: '消息', minWidth: 320, showOverflowTooltip: true },
         { prop: 'created_at', label: '创建时间', minWidth: 180, useSlot: true }
       ]
@@ -248,13 +195,9 @@
     images: 0
   })
 
-  const canViewLines = computed(() => hasAdminPermission(info.value?.permissions, ['line.list']))
-  const canViewPackages = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['package.list'])
-  )
-  const canViewImages = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['system_image.list'])
-  )
+  const canViewLines = computed(() => hasAuth('line.list'))
+  const canViewPackages = computed(() => hasAuth('package.list'))
+  const canViewImages = computed(() => hasAuth('system_image.list'))
 
   const maskedApiKey = computed(() => {
     const raw = String(config.api_key || '')
@@ -299,36 +242,26 @@
     }
   }
 
-  async function fetchLogTable(
-    params: AutomationLogTableParams
-  ): Promise<Api.Common.PaginatedResponse<IntegrationSyncLogRecord>> {
-    try {
-      const payload = await fetchAdminAutomationSyncLogs({
-        limit: params.size,
-        offset: (params.current - 1) * params.size,
-        q: params.keyword || undefined,
-        status: params.status || undefined
-      })
-      const records = payload.items || []
-      return {
-        records,
-        current: params.current,
-        size: params.size,
-        total: Number(payload.total || records.length)
-      }
-    } catch {
-      return { records: [], current: params.current, size: params.size, total: 0 }
+  async function fetchLogTable(): Promise<Api.Common.PaginatedResponse<IntegrationSyncLogRecord>> {
+    const payload = await fetchAdminAutomationSyncLogs({
+      limit: 200,
+      offset: 0
+    })
+    const records = payload.items || []
+    return {
+      records,
+      current: 1,
+      size: 200,
+      total: Number(payload.total || records.length)
     }
   }
 
-  async function handleLogSearch(params: Pick<AutomationLogTableParams, 'keyword' | 'status'>) {
-    Object.assign(searchParams, params)
-    await refreshLogs()
-  }
-
-  async function handleLogReset() {
-    logSearchForm.value = { keyword: '', status: undefined }
-    await resetSearchParams()
+  async function refreshLogs() {
+    try {
+      await loadLogs()
+    } catch {
+      ElMessage.error('加载同步日志失败')
+    }
   }
 
   async function fetchStats() {
@@ -369,6 +302,7 @@
 
       await Promise.all(tasks)
     } catch {
+      ElMessage.error('加载同步统计失败')
       stats.lines = canViewLines.value ? stats.lines : 0
       stats.packages = canViewPackages.value ? stats.packages : 0
       stats.images = canViewImages.value ? stats.images : 0

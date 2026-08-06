@@ -40,6 +40,11 @@
       </ElDescriptions>
 
       <ArtTable row-key="payment_id" :data="rows" :columns="tableColumns" :show-pagination="false">
+        <template #order_no="{ row }">
+          <ElButton link type="primary" @click="copyOrderNo(row.order_no)">
+            {{ row.order_no || '-' }}
+          </ElButton>
+        </template>
         <template #amount="{ row }">
           <span :class="amountClass(Number(row.amount_cents || 0))">
             {{ amountPrefix(Number(row.amount_cents || 0)) }}¥{{
@@ -62,6 +67,7 @@
 
 <script setup lang="ts">
   import type { RevenueAnalyticsDetailRecord, User } from '@/services/types'
+  import { ElMessage } from 'element-plus'
 
   defineOptions({ name: 'UserFinanceDrawer' })
 
@@ -114,6 +120,16 @@
 
   function formatCents(value?: number | null) {
     return (Number(value || 0) / 100).toFixed(2)
+  }
+
+  async function copyOrderNo(orderNo?: string | null) {
+    const value = String(orderNo || '').trim()
+    if (!value) {
+      return
+    }
+
+    await navigator.clipboard.writeText(value)
+    ElMessage.success('订单号已复制')
   }
 
   function formatDateTime(value?: string | null) {

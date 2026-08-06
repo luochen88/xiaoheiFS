@@ -22,25 +22,25 @@
               :disabled="!selectedImageIds.length"
               @click="removeSelectedImages"
             >
-              {{ t('systemImage.page.actions.bulkDelete') }}
+              批量删除
             </ElButton>
 
-            <ElButton v-if="canSync" @click="openSyncDialog">
-              {{ t('systemImage.page.actions.sync') }}
-            </ElButton>
+            <ElButton v-if="canSync" @click="openSyncDialog"> 同步镜像 </ElButton>
 
             <ElButton v-if="canConfigLineImages" @click="openLineConfigDialog">
-              {{ t('systemImage.page.actions.lineConfig') }}
+              线路镜像配置
             </ElButton>
 
             <ElButton v-if="canCreate" type="primary" @click="openCreateDialog">
-              {{ t('systemImage.page.actions.create') }}
+              新增镜像
             </ElButton>
           </ElSpace>
         </template>
       </ArtTableHeader>
 
-      <div class="page-tip">{{ t('systemImage.page.tip') }}</div>
+      <div class="page-tip">
+        同步会调用自动化 /mirror_image?line_id=... 并更新该线路启用的镜像关系
+      </div>
 
       <ArtTable
         row-key="id"
@@ -62,7 +62,7 @@
 
         <template #enabled="{ row }">
           <ElTag :type="row.enabled ? 'success' : 'danger'">
-            {{ row.enabled ? t('systemImage.status.enabled') : t('systemImage.status.disabled') }}
+            {{ row.enabled ? '启用' : '停用' }}
           </ElTag>
         </template>
 
@@ -113,15 +113,13 @@
     deleteAdminSystemImage,
     fetchAdminLines,
     fetchAdminSystemImages,
-    hasAdminPermission,
     setAdminLineSystemImages,
     syncAdminSystemImages,
     updateAdminSystemImage
   } from '@/services/admin'
   import { useTable } from '@/hooks/core/useTable'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { ElMessage, ElMessageBox } from 'element-plus'
-  import { useI18n } from 'vue-i18n'
   import LineImageDialog from './modules/line-image-dialog.vue'
   import SystemImageDialog from './modules/system-image-dialog.vue'
   import SystemImageSearch from './modules/system-image-search.vue'
@@ -131,6 +129,7 @@
   interface SystemImageSearchForm {
     keyword: string
     status?: string
+    range?: string[]
   }
 
   interface SystemImageTableParams extends Api.Common.CommonSearchParams, SystemImageSearchForm {}
@@ -149,9 +148,36 @@
     line_id: number | null
   }
 
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
-  const { t } = useI18n()
+  const { hasAuth } = useAuth()
+
+  const systemImageTexts: Record<string, string> = {
+    'systemImage.page.columns.imageId': '镜像 ID',
+    'systemImage.page.columns.name': '名称',
+    'systemImage.page.columns.type': '类型',
+    'systemImage.page.columns.status': '状态',
+    'systemImage.page.columns.operation': '操作',
+    'systemImage.page.operation.edit': '编辑',
+    'systemImage.page.operation.delete': '删除',
+    'systemImage.messages.imageIdPositive': '镜像 ID 必须是正整数',
+    'systemImage.messages.typeRequired': '请选择镜像类型',
+    'systemImage.messages.saved': '系统镜像已保存',
+    'systemImage.messages.confirmDelete': '确定要删除这个系统镜像吗？',
+    'systemImage.messages.confirmDeleteTitle': '删除确认',
+    'systemImage.messages.deleted': '系统镜像已删除',
+    'systemImage.messages.confirmBulkDelete': '确定要删除选中的 {count} 个系统镜像吗？',
+    'systemImage.messages.confirmBulkDeleteTitle': '批量删除确认',
+    'systemImage.messages.bulkDeleted': '系统镜像已批量删除',
+    'systemImage.messages.lineRequired': '请选择线路',
+    'systemImage.messages.resolveLineFailed': '无法获取线路信息',
+    'systemImage.messages.syncStarted': '系统镜像同步已开始',
+    'systemImage.messages.lineConfigSaved': '线路镜像配置已保存'
+  }
+
+  function t(key: string, params?: Record<string, unknown>) {
+    return (systemImageTexts[key] || key).replace(/\{(\w+)\}/g, (_, name: string) =>
+      String(params?.[name] ?? `{${name}}`)
+    )
+  }
 
   const showSearchBar = ref(true)
   const dialogVisible = ref(false)
@@ -208,29 +234,16 @@
     }
   })
 
-  const canView = computed(() => hasAdminPermission(info.value?.permissions, ['system_image.list']))
-  const canCreate = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['system_image.create'])
-  )
-  const canUpdate = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['system_image.update'])
-  )
-  const canDelete = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['system_image.delete'])
-  )
-  const canBulkDelete = computed(
-    () =>
-      hasAdminPermission(info.value?.permissions, ['system_image.delete']) ||
-      hasAdminPermission(info.value?.permissions, ['system_image.bulk_delete'])
-  )
-  const canViewLines = computed(() => hasAdminPermission(info.value?.permissions, ['line.list']))
+  const canView = computed(() => hasAuth('system_image.list'))
+  const canCreate = computed(() => hasAuth('system_image.create'))
+  const canUpdate = computed(() => hasAuth('system_image.update'))
+  const canDelete = computed(() => hasAuth('system_image.delete'))
+  const canBulkDelete = computed(() => hasAuth('system_image.bulk_delete'))
+  const canViewLines = computed(() => hasAuth('line.list'))
   const canConfigLineImages = computed(
-    () =>
-      canViewLines.value && hasAdminPermission(info.value?.permissions, ['line.set_system_images'])
+    () => canViewLines.value && hasAuth('line.set_system_images')
   )
-  const canSync = computed(
-    () => canViewLines.value && hasAdminPermission(info.value?.permissions, ['system_image.sync'])
-  )
+  const canSync = computed(() => canViewLines.value && hasAuth('system_image.sync'))
 
   const imageOptions = computed(() =>
     allRows.value.map((item) => ({
@@ -259,7 +272,8 @@
   function createDefaultSearchForm(): SystemImageSearchForm {
     return {
       keyword: '',
-      status: undefined
+      status: undefined,
+      range: []
     }
   }
 
@@ -449,11 +463,6 @@
     const imageId = Number(form.image_id || 0)
     if (!Number.isInteger(imageId) || imageId <= 0) {
       ElMessage.error(t('systemImage.messages.imageIdPositive'))
-      return
-    }
-
-    if (!String(form.name || '').trim()) {
-      ElMessage.error(t('systemImage.messages.nameRequired'))
       return
     }
 

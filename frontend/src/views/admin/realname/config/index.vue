@@ -10,6 +10,14 @@
     @save="save"
   >
     <div class="realname-config-page">
+      <ElAlert
+        class="realname-help"
+        type="info"
+        :closable="false"
+        show-icon
+        title="开启后用户需要进行实名认证才能使用某些功能"
+        description="建议选择完整 key（含 instance_id）的服务商，避免多实例同名选错。选择需要实名认证后才能进行的操作。"
+      />
       <ArtForm
         v-model="form"
         :items="formItems"
@@ -46,9 +54,7 @@
       label: '认证服务商',
       type: 'select',
       props: {
-        clearable: true,
-        filterable: true,
-        placeholder: '请选择认证服务商',
+        placeholder: '选择服务商',
         options: providers.value.map((provider) => ({
           label: providerLabel(provider),
           value: String(provider.key ?? '')
@@ -57,13 +63,13 @@
     },
     {
       key: 'block_actions',
-      label: '完成实名后才允许的操作',
+      label: '限制的操作',
       type: 'checkboxgroup',
       props: {
         options: [
-          { label: '购买 VPS', value: 'purchase_vps' },
-          { label: '续费 VPS', value: 'renew_vps' },
-          { label: '升级或扩容 VPS', value: 'resize_vps' }
+          { label: '购买VPS', value: 'purchase_vps' },
+          { label: '续费VPS', value: 'renew_vps' },
+          { label: '扩容VPS', value: 'resize_vps' }
         ]
       }
     }
@@ -113,5 +119,9 @@
 <style lang="scss" scoped>
   .realname-config-page {
     min-width: 0;
+  }
+
+  .realname-help {
+    margin: 0 16px 12px;
   }
 </style>

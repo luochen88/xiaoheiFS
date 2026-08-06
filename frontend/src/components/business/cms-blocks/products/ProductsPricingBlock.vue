@@ -37,7 +37,9 @@
             ><ArtSvgIcon icon="ri:check-line" />{{ feature }}</li
           >
         </ul>
-        <RouterLink to="/console" class="products-pricing__action"
+        <RouterLink
+          :to="product.cta === '立即选购' ? { name: 'PublicBuy' } : { path: '/console' }"
+          class="products-pricing__action"
           ><span>{{ product.cta || '立即选购' }}</span
           ><ArtSvgIcon icon="ri:arrow-right-line"
         /></RouterLink>

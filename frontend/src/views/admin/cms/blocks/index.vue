@@ -88,13 +88,7 @@
           <ElRow :gutter="16">
             <ElCol :span="8">
               <ElFormItem label="页面" prop="page">
-                <ElSelect
-                  v-model="dialogForm.page"
-                  filterable
-                  allow-create
-                  default-first-option
-                  placeholder="home"
-                >
+                <ElSelect v-model="dialogForm.page" filterable placeholder="home">
                   <ElOption
                     v-for="item in pageOptions"
                     :key="item.value"
@@ -107,13 +101,7 @@
 
             <ElCol :span="8">
               <ElFormItem label="类型" prop="type">
-                <ElSelect
-                  v-model="dialogForm.type"
-                  filterable
-                  allow-create
-                  default-first-option
-                  placeholder="hero"
-                >
+                <ElSelect v-model="dialogForm.type" filterable placeholder="hero">
                   <ElOption
                     v-for="item in dialogTypeOptions"
                     :key="item.value"
@@ -140,22 +128,14 @@
 
           <ElRow :gutter="16">
             <ElCol :span="12">
-              <ElFormItem label="标题">
-                <ElInput
-                  v-model="dialogForm.title"
-                  :maxlength="INPUT_LIMITS.CMS_TITLE"
-                  placeholder="请输入区块标题"
-                />
+              <ElFormItem label="标题" prop="title">
+                <ElInput v-model="dialogForm.title" placeholder="请输入区块标题" />
               </ElFormItem>
             </ElCol>
 
             <ElCol :span="12">
               <ElFormItem label="副标题">
-                <ElInput
-                  v-model="dialogForm.subtitle"
-                  :maxlength="INPUT_LIMITS.CMS_SUBTITLE"
-                  placeholder="可选副标题"
-                />
+                <ElInput v-model="dialogForm.subtitle" placeholder="可选副标题" />
               </ElFormItem>
             </ElCol>
           </ElRow>
@@ -174,20 +154,81 @@
             </ElCol>
           </ElRow>
 
-          <ElFormItem
-            v-if="dialogForm.type !== 'custom_html'"
-            label="内容 JSON"
-            prop="content_json"
-          >
-            <ElInput
-              v-model="dialogForm.content_json"
-              type="textarea"
-              :rows="12"
-              :maxlength="INPUT_LIMITS.CMS_JSON"
-              show-word-limit
-              placeholder='{"items":[...]}'
-            />
-          </ElFormItem>
+          <template v-if="dialogForm.type !== 'custom_html'">
+            <ElRow v-if="isStructuredType" :gutter="12">
+              <ElCol v-for="field in scalarFields" :key="field.key" :xs="24" :md="field.span || 12">
+                <ElFormItem :label="field.label">
+                  <ElInput
+                    v-model="contentModel[field.key]"
+                    :placeholder="field.placeholder || '可选'"
+                  />
+                </ElFormItem>
+              </ElCol>
+            </ElRow>
+
+            <div v-for="list in structuredLists" :key="list.key" class="structured-list">
+              <div class="structured-list-header">
+                <span>{{ list.label }}</span>
+                <ElButton link type="primary" @click="addStructuredItem(list)">新增条目</ElButton>
+              </div>
+              <ElRow
+                v-for="(item, index) in getStructuredItems(list.key)"
+                :key="index"
+                :gutter="12"
+                class="structured-item"
+              >
+                <ElCol v-if="list.primitive" :xs="20" :md="20">
+                  <ElInput
+                    :model-value="String(item ?? '')"
+                    placeholder="请输入内容"
+                    @update:model-value="setPrimitiveListValue(list.key, index, $event)"
+                  />
+                </ElCol>
+                <template v-else>
+                  <ElCol
+                    v-for="field in list.fields"
+                    :key="field.key"
+                    :xs="24"
+                    :md="field.span || 8"
+                  >
+                    <ElSwitch
+                      v-if="field.kind === 'boolean'"
+                      :model-value="Boolean(getStructuredValue(item, field.key))"
+                      :active-text="field.label"
+                      @update:model-value="setStructuredValue(item, field, $event)"
+                    />
+                    <ElInputNumber
+                      v-else-if="field.kind === 'number'"
+                      :model-value="Number(getStructuredValue(item, field.key) || 0)"
+                      :placeholder="field.label"
+                      class="full-width"
+                      @update:model-value="setStructuredValue(item, field, $event)"
+                    />
+                    <ElInput
+                      v-else
+                      :model-value="formatStructuredValue(item, field)"
+                      :placeholder="field.label"
+                      @update:model-value="setStructuredValue(item, field, $event)"
+                    />
+                  </ElCol>
+                </template>
+                <ElCol :xs="4" :md="4">
+                  <ElButton link type="danger" @click="removeStructuredItem(list.key, index)">
+                    删除
+                  </ElButton>
+                </ElCol>
+              </ElRow>
+            </div>
+
+            <ElFormItem v-if="!isStructuredType" label="内容 JSON" prop="content_json">
+              <ElInput
+                v-model="dialogForm.content_json"
+                type="textarea"
+                :rows="12"
+                placeholder='{"items":[...]}'
+              />
+            </ElFormItem>
+          </template>
 
           <ElFormItem
             v-if="dialogForm.type === 'custom_html'"
@@ -198,8 +239,6 @@
               v-model="dialogForm.custom_html"
               type="textarea"
               :rows="12"
-              :maxlength="INPUT_LIMITS.CMS_HTML"
-              show-word-limit
               placeholder="<section>...</section>"
             />
           </ElFormItem>
@@ -231,6 +270,11 @@
                   class="preview-html"
                   v-html="previewContent"
                 ></div>
+                <component
+                  v-else-if="previewComponent"
+                  :is="previewComponent"
+                  v-bind="previewProps"
+                />
                 <pre v-else class="preview-json">{{ previewContent }}</pre>
               </div>
             </div>
@@ -252,16 +296,23 @@
 
 <script setup lang="ts">
   import type { CMSBlockRecord } from '@/services/admin'
-  import {
-    createCMSBlock,
-    deleteCMSBlock,
-    fetchCMSBlocks,
-    hasAdminPermission,
-    updateCMSBlock
-  } from '@/services/admin'
+  import FooterBlock from '@/components/business/cms-blocks/FooterBlock.vue'
+  import HomeCtaBlock from '@/components/business/cms-blocks/home/HomeCtaBlock.vue'
+  import HomeFeaturesBlock from '@/components/business/cms-blocks/home/HomeFeaturesBlock.vue'
+  import HomeHeroBlock from '@/components/business/cms-blocks/home/HomeHeroBlock.vue'
+  import HomeProductsBlock from '@/components/business/cms-blocks/home/HomeProductsBlock.vue'
+  import ProductsCalculatorBlock from '@/components/business/cms-blocks/products/ProductsCalculatorBlock.vue'
+  import ProductsComparisonBlock from '@/components/business/cms-blocks/products/ProductsComparisonBlock.vue'
+  import ProductsCtaBlock from '@/components/business/cms-blocks/products/ProductsCtaBlock.vue'
+  import ProductsHeroBlock from '@/components/business/cms-blocks/products/ProductsHeroBlock.vue'
+  import ProductsPricingBlock from '@/components/business/cms-blocks/products/ProductsPricingBlock.vue'
+  import HelpActionsBlock from '@/components/business/cms-blocks/help/HelpActionsBlock.vue'
+  import HelpContactBlock from '@/components/business/cms-blocks/help/HelpContactBlock.vue'
+  import HelpFaqBlock from '@/components/business/cms-blocks/help/HelpFaqBlock.vue'
+  import HelpHeroBlock from '@/components/business/cms-blocks/help/HelpHeroBlock.vue'
+  import { createCMSBlock, deleteCMSBlock, fetchCMSBlocks, updateCMSBlock } from '@/services/admin'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { useTable } from '@/hooks/core/useTable'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
-  import { INPUT_LIMITS } from '@/constants/inputLimits'
   import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 
   defineOptions({ name: 'CmsBlocksPage' })
@@ -298,7 +349,6 @@
   interface FilterState {
     page?: string
     type?: string
-    lang?: string
   }
 
   interface BlockTableParams extends Api.Common.CommonSearchParams, FilterState {}
@@ -306,6 +356,21 @@
   interface OptionItem {
     label: string
     value: string
+  }
+
+  interface StructuredField {
+    key: string
+    label: string
+    kind?: 'text' | 'number' | 'boolean' | 'string-list'
+    placeholder?: string
+    span?: number
+  }
+
+  interface StructuredListDefinition {
+    key: string
+    label: string
+    primitive?: boolean
+    fields: StructuredField[]
   }
 
   const languageOptions: OptionItem[] = [
@@ -346,8 +411,7 @@
     { label: '自定义 HTML', value: 'custom_html' }
   ]
 
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
+  const { hasAuth } = useAuth()
 
   const initialized = ref(false)
   const dialogVisible = ref(false)
@@ -356,10 +420,10 @@
 
   const filters = ref<FilterState>({
     page: undefined,
-    type: undefined,
-    lang: undefined
+    type: undefined
   })
   const dialogForm = reactive<BlockDialogForm>(createDefaultDialogForm())
+  const contentModel = reactive<Record<string, any>>({})
   const formRef = ref<FormInstance>()
   const previewZoomEnabled = ref(true)
   const previewScalePercent = ref(70)
@@ -370,16 +434,10 @@
   const PREVIEW_HEIGHT = 405
   let previewResizeObserver: ResizeObserver | null = null
 
-  const canView = computed(() => hasAdminPermission(info.value?.permissions, ['cms_block.list']))
-  const canCreate = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['cms_block.create'])
-  )
-  const canUpdate = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['cms_block.update'])
-  )
-  const canDelete = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['cms_block.delete'])
-  )
+  const canView = computed(() => hasAuth('cms_block.list'))
+  const canCreate = computed(() => hasAuth('cms_block.create'))
+  const canUpdate = computed(() => hasAuth('cms_block.update'))
+  const canDelete = computed(() => hasAuth('cms_block.delete'))
 
   const allTypeOptions = computed(() => {
     const map = new Map<string, OptionItem>()
@@ -406,12 +464,6 @@
         placeholder: '全部类型',
         options: allTypeOptions.value
       }
-    },
-    {
-      key: 'lang',
-      label: '语言',
-      type: 'select',
-      props: { clearable: true, placeholder: '全部语言', options: languageOptions }
     }
   ])
 
@@ -451,9 +503,25 @@
     }
   })
 
-  const dialogTypeOptions = computed(() =>
-    dialogForm.page === 'help' ? helpTypeOptions : sharedTypeOptions
-  )
+  const dialogTypeOptions = computed(() => {
+    if (dialogForm.page === 'help') return helpTypeOptions
+    if (dialogForm.page === 'home') {
+      return sharedTypeOptions.filter((item) =>
+        ['hero', 'features', 'products', 'cta', 'custom_html'].includes(item.value)
+      )
+    }
+    if (dialogForm.page === 'products') {
+      return sharedTypeOptions.filter((item) =>
+        ['hero', 'calculator', 'pricing', 'comparison', 'cta', 'custom_html'].includes(item.value)
+      )
+    }
+    if (dialogForm.page === 'footer') {
+      return sharedTypeOptions.filter((item) => ['footer', 'custom_html'].includes(item.value))
+    }
+    return sharedTypeOptions.filter((item) =>
+      ['hero', 'posts', 'resources', 'custom_html'].includes(item.value)
+    )
+  })
 
   const previewContent = computed(() => {
     if (dialogForm.type === 'custom_html') {
@@ -471,6 +539,361 @@
     }
   })
 
+  const isStructuredType = computed(() =>
+    [
+      'hero',
+      'features',
+      'products',
+      'cta',
+      'calculator',
+      'pricing',
+      'comparison',
+      'footer',
+      'help_hero',
+      'help_actions',
+      'help_faq',
+      'help_contact'
+    ].includes(dialogForm.type)
+  )
+
+  const scalarFields = computed<StructuredField[]>(() => {
+    if (dialogForm.type === 'hero' && dialogForm.page === 'home') {
+      return [
+        { key: 'badge', label: '徽标' },
+        { key: 'title1', label: '主标题' },
+        { key: 'subtitle', label: '副标题' },
+        { key: 'primary_button_text', label: '主按钮文字' },
+        { key: 'primary_button_link', label: '主按钮链接' },
+        { key: 'secondary_button_text', label: '次按钮文字' },
+        { key: 'secondary_button_link', label: '次按钮链接' }
+      ]
+    }
+    if (dialogForm.type === 'hero') {
+      return [
+        { key: 'badge', label: '徽标' },
+        { key: 'title', label: '标题' },
+        { key: 'subtitle', label: '副标题' }
+      ]
+    }
+    if (dialogForm.type === 'features') {
+      return [
+        { key: 'badge', label: '徽标' },
+        { key: 'title', label: '标题' },
+        { key: 'desc', label: '描述' }
+      ]
+    }
+    if (dialogForm.type === 'products') {
+      return [
+        { key: 'badge', label: '徽标' },
+        { key: 'title', label: '标题' }
+      ]
+    }
+    if (dialogForm.type === 'cta' && dialogForm.page === 'products') {
+      return [
+        { key: 'title', label: '标题' },
+        { key: 'desc', label: '描述' },
+        { key: 'contact_text', label: '联系按钮文字' },
+        { key: 'contact_link', label: '联系链接' },
+        { key: 'email', label: '联系邮箱' }
+      ]
+    }
+    if (dialogForm.type === 'cta') {
+      return [
+        { key: 'title', label: '标题' },
+        { key: 'desc', label: '描述' },
+        { key: 'button_text', label: '按钮文字' },
+        { key: 'button_link', label: '按钮链接' }
+      ]
+    }
+    if (dialogForm.type === 'calculator') {
+      return [
+        { key: 'title', label: '标题' },
+        { key: 'desc', label: '描述' }
+      ]
+    }
+    if (dialogForm.type === 'comparison') return [{ key: 'title', label: '标题' }]
+    if (dialogForm.type === 'pricing') return []
+    if (dialogForm.type === 'help_hero') {
+      return [
+        { key: 'badge', label: '徽标' },
+        { key: 'title_main', label: '主标题' },
+        { key: 'title_gradient', label: '强调标题' },
+        { key: 'subtitle', label: '副标题' },
+        { key: 'search_placeholder', label: '搜索提示' }
+      ]
+    }
+    if (dialogForm.type === 'help_faq') {
+      return [
+        { key: 'title', label: '标题' },
+        { key: 'subtitle', label: '副标题' }
+      ]
+    }
+    if (dialogForm.type === 'help_contact') {
+      return [
+        { key: 'title', label: '标题' },
+        { key: 'description', label: '描述' },
+        { key: 'cta_title', label: '行动标题' },
+        { key: 'cta_desc', label: '行动描述' },
+        { key: 'cta_button_text', label: '行动按钮文字' },
+        { key: 'cta_url', label: '行动链接' }
+      ]
+    }
+    if (dialogForm.type === 'footer') {
+      return [
+        { key: 'description', label: '站点描述' },
+        { key: 'copyright', label: '版权信息' }
+      ]
+    }
+    return []
+  })
+
+  const structuredLists = computed<StructuredListDefinition[]>(() => {
+    const labels: Record<string, string> = {
+      icon: '图标',
+      tag: '标签',
+      title: '标题',
+      description: '描述',
+      price: '价格',
+      key: '标识',
+      url: '链接',
+      guest_url: '游客链接',
+      value: '数值',
+      suffix: '后缀',
+      label: '标签',
+      category: '分类',
+      question: '问题',
+      answer: '答案',
+      subtitle: '副标题'
+    }
+    const textFields = (fields: string[]): StructuredField[] =>
+      fields.map((key) => ({ key, label: labels[key] || key }))
+    if (dialogForm.type === 'hero' && dialogForm.page === 'home') {
+      return [
+        { key: 'typewriter_words', label: '轮播文字', primitive: true, fields: [] },
+        {
+          key: 'cards',
+          label: '浮动卡片',
+          fields: [
+            { key: 'title', label: '标题' },
+            { key: 'desc', label: '描述' }
+          ]
+        },
+        {
+          key: 'stats',
+          label: '统计数据',
+          fields: [
+            { key: 'value', label: '数值' },
+            { key: 'suffix', label: '后缀' },
+            { key: 'label', label: '标签' }
+          ]
+        }
+      ]
+    }
+    if (dialogForm.type === 'features') {
+      return [
+        { key: 'items', label: '功能条目', fields: textFields(['icon', 'title', 'description']) }
+      ]
+    }
+    if (dialogForm.type === 'products' && dialogForm.page === 'home') {
+      return [
+        {
+          key: 'items',
+          label: '产品条目',
+          fields: textFields(['icon', 'tag', 'title', 'description', 'price'])
+        }
+      ]
+    }
+    if (dialogForm.type === 'cta' && dialogForm.page === 'home') {
+      return [{ key: 'features', label: '卖点条目', primitive: true, fields: [] }]
+    }
+    if (dialogForm.type === 'hero' && dialogForm.page === 'products') {
+      return [{ key: 'features', label: '卖点条目', primitive: true, fields: [] }]
+    }
+    if (dialogForm.type === 'calculator') {
+      return [
+        {
+          key: 'scenarios',
+          label: '使用场景',
+          fields: [
+            { key: 'icon', label: '图标' },
+            { key: 'name', label: '名称' },
+            { key: 'recommended', label: '推荐配置' },
+            { key: 'plan', label: '套餐 ID', kind: 'number' }
+          ]
+        }
+      ]
+    }
+    if (dialogForm.type === 'pricing') {
+      return [
+        {
+          key: 'products',
+          label: '价格套餐',
+          fields: [
+            { key: 'icon', label: '图标' },
+            { key: 'name', label: '名称' },
+            { key: 'description', label: '描述' },
+            { key: 'price', label: '价格' },
+            { key: 'recommended', label: '推荐', kind: 'boolean' },
+            { key: 'cta', label: '按钮文字' }
+          ]
+        }
+      ]
+    }
+    if (dialogForm.type === 'comparison') {
+      return [
+        {
+          key: 'rows',
+          label: '对比条目',
+          fields: [
+            { key: 'feature', label: '配置项' },
+            { key: 'values', label: '各套餐值（逗号分隔）', kind: 'string-list' }
+          ]
+        }
+      ]
+    }
+    if (dialogForm.type === 'help_hero') {
+      return [{ key: 'quick_stats', label: '快捷统计', fields: textFields(['value', 'label']) }]
+    }
+    if (dialogForm.type === 'help_actions') {
+      return [
+        {
+          key: 'cards',
+          label: '快捷入口',
+          fields: textFields(['key', 'title', 'description', 'url', 'guest_url'])
+        }
+      ]
+    }
+    if (dialogForm.type === 'help_faq') {
+      return [
+        {
+          key: 'categories',
+          label: '问题分类',
+          fields: textFields(['key', 'label'])
+        },
+        {
+          key: 'faqs',
+          label: '常见问题',
+          fields: textFields(['category', 'question', 'answer'])
+        }
+      ]
+    }
+    if (dialogForm.type === 'help_contact') {
+      return [
+        {
+          key: 'channels',
+          label: '联系方式',
+          fields: textFields(['key', 'title', 'subtitle'])
+        }
+      ]
+    }
+    if (dialogForm.type === 'footer') {
+      return [
+        {
+          key: 'social_links',
+          label: '社交链接',
+          fields: textFields(['key', 'url'])
+        },
+        { key: 'sections', label: '页脚栏目', fields: textFields(['title']) }
+      ]
+    }
+    return []
+  })
+
+  const previewComponent = computed(() => {
+    const map: Record<string, unknown> = {
+      hero: dialogForm.page === 'home' ? HomeHeroBlock : ProductsHeroBlock,
+      features: HomeFeaturesBlock,
+      products: HomeProductsBlock,
+      calculator: ProductsCalculatorBlock,
+      pricing: ProductsPricingBlock,
+      comparison: ProductsComparisonBlock,
+      cta: dialogForm.page === 'products' ? ProductsCtaBlock : HomeCtaBlock,
+      footer: FooterBlock,
+      help_hero: HelpHeroBlock,
+      help_actions: HelpActionsBlock,
+      help_faq: HelpFaqBlock,
+      help_contact: HelpContactBlock
+    }
+    return map[dialogForm.type] || null
+  })
+
+  const previewProps = computed(() => {
+    const content = contentModel
+    if (dialogForm.type === 'hero' && dialogForm.page === 'home') {
+      const stats = Array.isArray(content.stats) ? content.stats : []
+      return {
+        heroContent: content,
+        typewriterText: String(content.typewriter_words?.[0] || ''),
+        stats,
+        animatedStats: stats.map((item: Record<string, unknown>) => String(item?.value || '')),
+        heroCards: Array.isArray(content.cards) ? content.cards : [],
+        handleTilt: () => undefined,
+        resetTilt: () => undefined
+      }
+    }
+    if (dialogForm.type === 'hero') return { content }
+    if (dialogForm.type === 'features') {
+      return {
+        content,
+        features: Array.isArray(content.items) ? content.items : [],
+        handleFeatureGlow: () => undefined,
+        resetFeatureGlow: () => undefined
+      }
+    }
+    if (dialogForm.type === 'products') {
+      return { content, products: Array.isArray(content.items) ? content.items : [] }
+    }
+    if (dialogForm.type === 'calculator') {
+      return {
+        content,
+        scenarios: Array.isArray(content.scenarios) ? content.scenarios : [],
+        selectedScenario: null,
+        onSelect: () => undefined
+      }
+    }
+    if (dialogForm.type === 'pricing') {
+      return {
+        products: Array.isArray(content.products) ? content.products : [],
+        selectedPlan: -1,
+        onSelect: () => undefined,
+        onHover: () => undefined
+      }
+    }
+    if (dialogForm.type === 'comparison') {
+      const rows = Array.isArray(content.rows) ? content.rows : []
+      const productCount = Math.max(
+        1,
+        ...rows.map((row: Record<string, unknown>) =>
+          Array.isArray(row?.values) ? row.values.length : 0
+        )
+      )
+      return {
+        content,
+        products: Array.from({ length: productCount }, (_, index) => ({
+          name: `套餐 ${index + 1}`
+        })),
+        rows
+      }
+    }
+    if (dialogForm.type === 'cta' && dialogForm.page !== 'products') {
+      return { content, features: Array.isArray(content.features) ? content.features : [] }
+    }
+    if (dialogForm.type === 'help_actions') return { content, isAuthenticated: false }
+    if (dialogForm.type === 'help_hero') return { content, searchQuery: '' }
+    if (dialogForm.type === 'help_faq') return { content, searchQuery: '' }
+    if (dialogForm.type === 'footer') {
+      return {
+        siteName: '站点',
+        content,
+        sections: Array.isArray(content.sections) ? content.sections : [],
+        badges: [],
+        copyrightText: String(content.copyright || ''),
+        beianInfoList: Array.isArray(content.beian_info_list) ? content.beian_info_list : []
+      }
+    }
+    return { content }
+  })
+
   const previewCanvasStyle = computed(() => {
     if (!previewZoomEnabled.value) {
       return {}
@@ -481,7 +904,8 @@
   const rules = computed<FormRules>(() => ({
     page: [{ required: true, message: '请选择页面', trigger: 'change' }],
     type: [{ required: true, message: '请选择区块类型', trigger: 'change' }],
-    lang: [{ required: true, message: '请选择语言', trigger: 'change' }]
+    lang: [{ required: true, message: '请选择语言', trigger: 'change' }],
+    title: [{ required: true, message: '请输入区块标题', trigger: 'blur' }]
   }))
 
   watch(
@@ -524,7 +948,13 @@
       if (!dialogTypeOptions.value.some((item) => item.value === dialogForm.type)) {
         dialogForm.type = dialogTypeOptions.value[0]?.value || ''
       }
+      ensureStructuredLists()
     }
+  )
+
+  watch(
+    () => dialogForm.type,
+    () => ensureStructuredLists()
   )
 
   function createDefaultDialogForm(): BlockDialogForm {
@@ -564,6 +994,79 @@
 
   function resetDialogForm() {
     Object.assign(dialogForm, createDefaultDialogForm())
+    Object.keys(contentModel).forEach((key) => delete contentModel[key])
+    ensureStructuredLists()
+  }
+
+  function loadContentModel(value: string) {
+    Object.keys(contentModel).forEach((key) => delete contentModel[key])
+    try {
+      const parsed = JSON.parse(value || '{}')
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        Object.assign(contentModel, parsed)
+      }
+    } catch {
+      Object.keys(contentModel).forEach((key) => delete contentModel[key])
+    }
+    ensureStructuredLists()
+  }
+
+  function ensureStructuredLists() {
+    if (!isStructuredType.value) return
+    structuredLists.value.forEach((list) => {
+      if (!Array.isArray(contentModel[list.key])) contentModel[list.key] = []
+    })
+  }
+
+  function getStructuredItems(key: string): unknown[] {
+    return Array.isArray(contentModel[key]) ? contentModel[key] : []
+  }
+
+  function addStructuredItem(list: StructuredListDefinition) {
+    if (!Array.isArray(contentModel[list.key])) contentModel[list.key] = []
+    if (list.primitive) {
+      contentModel[list.key].push('')
+      return
+    }
+    const item: Record<string, unknown> = {}
+    list.fields.forEach((field) => {
+      if (field.kind === 'boolean') item[field.key] = false
+      else if (field.kind === 'number') item[field.key] = 0
+      else if (field.kind === 'string-list') item[field.key] = []
+      else item[field.key] = ''
+    })
+    contentModel[list.key].push(item)
+  }
+
+  function removeStructuredItem(key: string, index: number) {
+    if (Array.isArray(contentModel[key])) contentModel[key].splice(index, 1)
+  }
+
+  function setPrimitiveListValue(key: string, index: number, value: string) {
+    if (Array.isArray(contentModel[key])) contentModel[key][index] = value
+  }
+
+  function getStructuredValue(item: unknown, key: string) {
+    return item && typeof item === 'object' && !Array.isArray(item)
+      ? (item as Record<string, unknown>)[key]
+      : undefined
+  }
+
+  function formatStructuredValue(item: unknown, field: StructuredField) {
+    const value = getStructuredValue(item, field.key)
+    if (field.kind === 'string-list') return Array.isArray(value) ? value.join(', ') : ''
+    return value == null ? '' : String(value)
+  }
+
+  function setStructuredValue(item: unknown, field: StructuredField, value: unknown) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return
+    ;(item as Record<string, unknown>)[field.key] =
+      field.kind === 'string-list'
+        ? String(value || '')
+            .split(',')
+            .map((entry) => entry.trim())
+            .filter(Boolean)
+        : value
   }
 
   function normalizeNullableNumber(value: unknown): number | null {
@@ -620,8 +1123,7 @@
     }
 
     const payload = await fetchCMSBlocks({
-      page: params.page || undefined,
-      lang: params.lang || undefined
+      page: params.page || undefined
     })
     const records = (payload.items || [])
       .map((item) => normalizeRow(item))
@@ -642,7 +1144,7 @@
   }
 
   async function handleReset() {
-    filters.value = { page: undefined, type: undefined, lang: undefined }
+    filters.value = { page: undefined, type: undefined }
     await resetSearchParams()
   }
 
@@ -667,6 +1169,7 @@
       visible: row.visible,
       sort_order: row.sort_order
     })
+    loadContentModel(row.content_json)
     dialogVisible.value = true
     nextTick(() => formRef.value?.clearValidate())
   }
@@ -681,15 +1184,6 @@
       return
     }
 
-    if (dialogForm.type !== 'custom_html' && dialogForm.content_json.trim()) {
-      try {
-        JSON.parse(dialogForm.content_json)
-      } catch {
-        ElMessage.error('内容 JSON 格式不正确')
-        return
-      }
-    }
-
     dialogSubmitting.value = true
 
     try {
@@ -699,7 +1193,11 @@
         title: String(dialogForm.title || ''),
         subtitle: String(dialogForm.subtitle || ''),
         content_json:
-          dialogForm.type === 'custom_html' ? '' : String(dialogForm.content_json || ''),
+          dialogForm.type === 'custom_html'
+            ? ''
+            : isStructuredType.value
+              ? JSON.stringify(contentModel)
+              : String(dialogForm.content_json || ''),
         custom_html: dialogForm.type === 'custom_html' ? String(dialogForm.custom_html || '') : '',
         lang: String(dialogForm.lang || 'zh-CN').trim() || 'zh-CN',
         visible: Boolean(dialogForm.visible),
@@ -716,6 +1214,8 @@
 
       dialogVisible.value = false
       await fetchData()
+    } catch (error: any) {
+      ElMessage.error(error?.response?.data?.error || '操作失败')
     } finally {
       dialogSubmitting.value = false
     }

@@ -4,6 +4,7 @@
     v-model="formData"
     :items="formItems"
     :showExpand="false"
+    :show-search="false"
     @reset="handleReset"
     @search="handleSearch"
   />
@@ -46,6 +47,7 @@
       props: {
         clearable: true,
         placeholder: '请选择状态',
+        onChange: emitImmediateSearch,
         options: [
           { label: '待处理', value: 'open' },
           { label: '等待回复', value: 'waiting_user' },
@@ -60,7 +62,9 @@
       type: 'input',
       props: {
         clearable: true,
-        placeholder: '请输入用户 ID'
+        placeholder: '请输入用户 ID',
+        onBlur: emitImmediateSearch,
+        onKeyup: handleInputKeyup
       }
     },
     {
@@ -69,13 +73,25 @@
       type: 'input',
       props: {
         clearable: true,
-        placeholder: '搜索标题或内容'
+        placeholder: '搜索标题或内容',
+        onBlur: emitImmediateSearch,
+        onKeyup: handleInputKeyup
       }
     }
   ])
 
   function handleReset() {
     emit('reset')
+  }
+
+  function emitImmediateSearch() {
+    nextTick(() => emit('search', { ...props.modelValue }))
+  }
+
+  function handleInputKeyup(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
+      emitImmediateSearch()
+    }
   }
 
   async function handleSearch(params: Record<string, any>) {

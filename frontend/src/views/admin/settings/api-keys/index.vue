@@ -153,7 +153,7 @@
       key: 'keyword',
       label: '关键词',
       type: 'input',
-      props: { clearable: true, placeholder: '名称或 Key Hash' }
+      props: { clearable: true, placeholder: 'Key Hash' }
     },
     {
       key: 'status',
@@ -170,7 +170,7 @@
   ])
 
   const createItems = computed(() => [
-    { key: 'name', label: '名称', type: 'input', props: { maxlength: 120 } },
+    { key: 'name', label: '名称', type: 'input' },
     {
       key: 'permission_group_id',
       label: '权限组',
@@ -187,7 +187,6 @@
     }
   ])
   const createRules: FormRules<CreateForm> = {
-    name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
     permission_group_id: [{ required: true, message: '请选择权限组', trigger: 'change' }]
   }
 
@@ -202,24 +201,44 @@
   })
 
   const fetchApiKeys = async (params: TableParams) => {
-    const response = await listApiKeys({
-      limit: params.size,
-      offset: (params.current - 1) * params.size
-    })
     const keyword = String(params.keyword ?? '')
       .trim()
       .toLowerCase()
-    let items = (response.data?.items ?? []).map(normalizeRow)
-    if (keyword) {
-      items = items.filter((item) =>
-        `${item.name} ${item.key_hash}`.toLowerCase().includes(keyword)
-      )
+    if (!keyword && !params.status) {
+      const response = await listApiKeys({
+        limit: params.size,
+        offset: (params.current - 1) * params.size
+      })
+      const items = (response.data?.items ?? []).map(normalizeRow)
+      return { records: items, total: response.data?.total ?? items.length }
     }
+
+    let items = await fetchAllApiKeys()
+    if (keyword) items = items.filter((item) => item.key_hash.toLowerCase().includes(keyword))
     if (params.status) items = items.filter((item) => item.status === params.status)
+    const start = (params.current - 1) * params.size
     return {
-      records: items,
-      total: keyword || params.status ? items.length : (response.data?.total ?? items.length)
+      records: items.slice(start, start + params.size),
+      total: items.length
     }
+  }
+
+  async function fetchAllApiKeys(): Promise<ApiKeyRow[]> {
+    const rows: ApiKeyRow[] = []
+    const limit = 100
+    let offset = 0
+    let total = 0
+
+    do {
+      const response = await listApiKeys({ limit, offset })
+      const pageRows = (response.data?.items ?? []).map(normalizeRow)
+      rows.push(...pageRows)
+      total = Number(response.data?.total ?? rows.length)
+      offset += pageRows.length
+      if (pageRows.length === 0) break
+    } while (offset < total)
+
+    return rows
   }
 
   const {

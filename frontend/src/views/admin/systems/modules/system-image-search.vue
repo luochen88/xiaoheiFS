@@ -11,11 +11,10 @@
 </template>
 
 <script setup lang="ts">
-  import { useI18n } from 'vue-i18n'
-
   interface SystemImageSearchForm {
     keyword: string
     status?: string
+    range?: string[]
   }
 
   interface Props {
@@ -35,7 +34,15 @@
 
   const searchBarRef = ref()
   const rules = {}
-  const { t } = useI18n()
+  const texts: Record<string, string> = {
+    'systemImage.search.keyword': '关键词',
+    'systemImage.search.keywordPlaceholder': '按名称或镜像 ID 搜索',
+    'systemImage.search.status': '状态',
+    'systemImage.search.statusPlaceholder': '请选择状态',
+    'systemImage.status.enabled': '启用',
+    'systemImage.status.disabled': '停用'
+  }
+  const t = (key: string) => texts[key] || key
 
   const formData = computed({
     get: () => props.modelValue,
@@ -63,6 +70,19 @@
           { label: t('systemImage.status.enabled'), value: 'enabled' },
           { label: t('systemImage.status.disabled'), value: 'disabled' }
         ]
+      }
+    },
+    {
+      label: '日期范围',
+      key: 'range',
+      type: 'daterange',
+      props: {
+        type: 'daterange',
+        clearable: true,
+        rangeSeparator: '至',
+        startPlaceholder: '开始日期',
+        endPlaceholder: '结束日期',
+        valueFormat: 'YYYY-MM-DD'
       }
     }
   ])

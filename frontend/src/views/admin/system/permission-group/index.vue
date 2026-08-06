@@ -1,14 +1,5 @@
 <template>
   <div class="art-full-height">
-    <ArtSearchBar
-      v-model="searchForm"
-      :items="searchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="handleReset"
-    />
-
     <ElCard class="art-table-card">
       <ElEmpty v-if="!canView" description="你没有查看权限组的权限。" />
 
@@ -19,15 +10,7 @@
           </template>
         </ArtTableHeader>
 
-        <ArtTable
-          row-key="id"
-          :loading="loading"
-          :data="tableData"
-          :columns="columns"
-          :pagination="pagination"
-          @pagination:size-change="handlePageSizeChange"
-          @pagination:current-change="handlePageCurrentChange"
-        >
+        <ArtTable row-key="id" :loading="loading" :data="tableData" :columns="columns">
           <template #permissions="{ row }">
             <div v-if="row.permissions.length" class="permission-tags">
               <ElTooltip
@@ -37,15 +20,15 @@
               >
                 <div class="permission-tags-inner">
                   <ElTag
-                    v-for="permission in row.permissions.slice(0, 4)"
+                    v-for="permission in row.permissions.slice(0, 5)"
                     :key="permission"
                     size="small"
                     type="info"
                   >
                     {{ getPermissionLabel(permission) }}
                   </ElTag>
-                  <ElTag v-if="row.permissions.length > 4" size="small" type="primary">
-                    +{{ row.permissions.length - 4 }}
+                  <ElTag v-if="row.permissions.length > 5" size="small" type="primary">
+                    +{{ row.permissions.length - 5 }} 更多
                   </ElTag>
                 </div>
               </ElTooltip>
@@ -83,11 +66,10 @@
     deletePermissionGroup,
     fetchAdminPermissions,
     fetchPermissionGroups,
-    hasAdminPermission,
     updatePermissionGroup
   } from '@/services/admin'
   import { useTable } from '@/hooks/core/useTable'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import PermissionGroupDialog from './modules/permission-group-dialog.vue'
 
@@ -109,22 +91,11 @@
     updated_at: string
   }
 
-  interface PermissionGroupTableParams extends Api.Common.CommonSearchParams {
-    keyword?: string
+  interface PermissionGroupRecordLike extends PermissionGroupRecord {
+    Permissions?: unknown
   }
 
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
-
-  const searchForm = ref({ keyword: '' })
-  const searchItems = [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '按名称、描述或权限搜索' }
-    }
-  ]
+  const { hasAuth } = useAuth()
   const dialogVisible = ref(false)
   const dialogSubmitting = ref(false)
   const dialogMode = ref<'create' | 'edit'>('create')
@@ -138,57 +109,47 @@
     columns,
     data: tableData,
     loading,
-    pagination,
-    searchParams,
     getData,
-    fetchData,
-    resetSearchParams,
-    handleSizeChange: handlePageSizeChange,
-    handleCurrentChange: handlePageCurrentChange
+    fetchData
   } = useTable({
     core: {
       apiFn: fetchPermissionGroupTable,
-      apiParams: { current: 1, size: 20, keyword: '' },
+      apiParams: { current: 1, size: 20 },
       immediate: false,
       columnsFactory: () => [
         { prop: 'id', label: 'ID', width: 90 },
         { prop: 'name', label: '名称', minWidth: 180, showOverflowTooltip: true },
         { prop: 'description', label: '描述', minWidth: 220, showOverflowTooltip: true },
         { prop: 'permissions', label: '权限', minWidth: 300, useSlot: true },
-        {
-          prop: 'updated_at',
-          label: '更新时间',
-          minWidth: 180,
-          formatter: (row: PermissionGroupTableRow) => formatDateTime(row.updated_at)
-        },
         { prop: 'operation', label: '操作', width: 150, fixed: 'right', useSlot: true }
       ]
     }
   })
 
-  const canView = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['permission_group.list', 'permission_group.view'])
-  )
-  const canCreate = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['permission_group.create'])
-  )
-  const canUpdate = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['permission_group.update'])
-  )
-  const canDelete = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['permission_group.delete'])
-  )
+  const canView = computed(() => hasAuth('permission_group.list'))
+  const canCreate = computed(() => hasAuth('permission_group.create'))
+  const canUpdate = computed(() => hasAuth('permission_group.update'))
+  const canDelete = computed(() => hasAuth('permission_group.delete'))
 
   const permissionLabelMap = computed(() => {
     const map = new Map<string, string>()
 
     permissionOptions.value.forEach((permission) => {
-      const code = String(permission.code || '')
+      const code = String(permission.code ?? permission.Code ?? '')
       if (!code) {
         return
       }
 
-      map.set(code, String(permission.friendly_name || permission.name || permission.code || ''))
+      map.set(
+        code,
+        String(
+          permission.friendly_name ??
+            permission.FriendlyName ??
+            permission.name ??
+            permission.Name ??
+            code
+        )
+      )
     })
 
     return map
@@ -240,12 +201,14 @@
     return []
   }
 
-  function normalizePermissionGroup(item?: PermissionGroupRecord): PermissionGroupTableRow {
+  function normalizePermissionGroup(item?: PermissionGroupRecordLike): PermissionGroupTableRow {
     return {
       id: normalizeNullableNumber(item?.id ?? item?.ID),
       name: String(item?.name ?? item?.Name ?? ''),
       description: String(item?.description ?? item?.Description ?? ''),
-      permissions: parsePermissions(item?.permissions_json ?? item?.PermissionsJSON),
+      permissions: parsePermissions(
+        item?.permissions ?? item?.Permissions ?? item?.permissions_json ?? item?.PermissionsJSON
+      ),
       created_at: String(item?.created_at ?? item?.CreatedAt ?? ''),
       updated_at: String(item?.updated_at ?? item?.UpdatedAt ?? '')
     }
@@ -272,53 +235,21 @@
     return permissions.map((permission) => getPermissionLabel(permission)).join('、')
   }
 
-  function formatDateTime(value?: string | null) {
-    if (!value) {
-      return '-'
-    }
-
-    const date = new Date(value)
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN')
-  }
-
-  async function fetchPermissionGroupTable(
-    params: PermissionGroupTableParams
-  ): Promise<Api.Common.PaginatedResponse<PermissionGroupTableRow>> {
+  async function fetchPermissionGroupTable(): Promise<
+    Api.Common.PaginatedResponse<PermissionGroupTableRow>
+  > {
     const [groupsPayload, permissionsPayload] = await Promise.all([
       fetchPermissionGroups(),
       fetchAdminPermissions()
     ])
     permissionOptions.value = permissionsPayload.items || []
-    const keyword = params.keyword?.trim().toLocaleLowerCase() || ''
     const allRows = (groupsPayload.items || []).map(normalizePermissionGroup)
-    const filteredRows = allRows.filter((row) => {
-      const permissions = row.permissions
-        .map((permission) => `${permission} ${getPermissionLabel(permission)}`)
-        .join(' ')
-      return (
-        !keyword ||
-        [row.name, row.description, permissions].some((value) =>
-          value.toLocaleLowerCase().includes(keyword)
-        )
-      )
-    })
-    const start = (params.current - 1) * params.size
     return {
-      records: filteredRows.slice(start, start + params.size),
-      current: params.current,
-      size: params.size,
-      total: filteredRows.length
+      records: allRows,
+      current: 1,
+      size: allRows.length,
+      total: allRows.length
     }
-  }
-
-  function handleSearch(params: { keyword?: string }) {
-    Object.assign(searchParams, params)
-    getData()
-  }
-
-  async function handleReset() {
-    searchForm.value = { keyword: '' }
-    await resetSearchParams()
   }
 
   function openCreate() {

@@ -16,7 +16,8 @@
         <span>{{ product.tag || '灵活配置' }}</span>
         <h3>{{ product.title }}</h3>
         <p>{{ product.description }}</p>
-        <RouterLink to="/products">了解更多 <ArtSvgIcon icon="ri:arrow-right-line" /></RouterLink>
+        <div v-if="product.price" class="home-products__price">￥{{ product.price }}/月起</div>
+        <RouterLink to="/products">查看详情 <ArtSvgIcon icon="ri:arrow-right-line" /></RouterLink>
       </article>
     </div>
   </section>
@@ -94,6 +95,13 @@
       margin: 0;
       line-height: 1.7;
       color: var(--art-gray-600);
+    }
+
+    .home-products__price {
+      margin-top: 14px;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--theme-color);
     }
 
     a {

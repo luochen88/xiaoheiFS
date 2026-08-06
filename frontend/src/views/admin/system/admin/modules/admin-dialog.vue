@@ -42,7 +42,6 @@
           v-model="localForm.permission_group_id"
           clearable
           filterable
-          :disabled="disablePermissionGroup"
           placeholder="请选择权限组"
           class="full-width"
         >
@@ -54,10 +53,6 @@
           />
         </ElSelect>
       </ElFormItem>
-
-      <div v-if="disablePermissionGroup" class="dialog-tip">
-        当前管理员不能在这里修改自己的权限组。
-      </div>
     </ElForm>
 
     <template #footer>
@@ -90,7 +85,6 @@
     mode: 'create' | 'edit'
     formData: AdminDialogFormValue
     permissionGroups?: PermissionGroupRecord[]
-    currentAdminId?: number | null
     submitting?: boolean
   }
 
@@ -101,7 +95,6 @@
 
   const props = withDefaults(defineProps<Props>(), {
     permissionGroups: () => [],
-    currentAdminId: null,
     submitting: false
   })
   const emit = defineEmits<Emits>()
@@ -115,13 +108,6 @@
 
   const isEditMode = computed(() => props.mode === 'edit')
   const dialogTitle = computed(() => (isEditMode.value ? '编辑管理员' : '创建管理员'))
-  const disablePermissionGroup = computed(
-    () =>
-      isEditMode.value &&
-      props.currentAdminId !== null &&
-      props.formData.id === props.currentAdminId
-  )
-
   const localForm = reactive<AdminDialogFormValue>(createDefaultForm())
 
   const permissionGroupOptions = computed(
@@ -159,8 +145,9 @@
       {
         validator: (_rule, value, callback) => {
           const text = String(value || '').trim()
-          if (text && !/^\d+$/.test(text)) {
-            callback(new Error('QQ 号必须是数字'))
+          const qq = Number(text)
+          if (text && (!Number.isInteger(qq) || qq <= 0)) {
+            callback(new Error('QQ号必须是正整数'))
             return
           }
           callback()

@@ -16,7 +16,7 @@
       >
         <template #left>
           <ElSpace wrap>
-            <ElButton v-if="canCreate" type="primary" v-ripple @click="openCreateRecord">
+            <ElButton v-auth="'vps.create'" type="primary" v-ripple @click="openCreateRecord">
               一键添加记录
             </ElButton>
 
@@ -26,8 +26,6 @@
                 {{ item.label }}
               </ElRadioButton>
             </ElRadioGroup>
-
-            <ElButton v-ripple @click="exportCsv">导出 CSV</ElButton>
           </ElSpace>
         </template>
       </ArtTableHeader>
@@ -59,8 +57,7 @@
 
         <template #operation="{ row }">
           <div class="table-actions">
-            <ArtButtonTable v-if="canView" type="view" @click="openDetail(row)" />
-            <ArtButtonTable v-if="canUpdate" type="edit" @click="openEdit(row)" />
+            <ArtButtonTable v-auth="'vps.update'" type="edit" @click="openEdit(row)" />
 
             <ArtButtonMore
               :list="getMoreActions(row)"
@@ -94,11 +91,7 @@
           </ElCol>
           <ElCol :span="12">
             <ElFormItem label="机器名" required>
-              <ElInput
-                v-model="createForm.name"
-                placeholder="必须与自动化系统机器名一致"
-                :maxlength="INPUT_LIMITS.VPS_NAME"
-              />
+              <ElInput v-model="createForm.name" placeholder="必须与自动化系统机器名一致" />
             </ElFormItem>
           </ElCol>
         </ElRow>
@@ -229,13 +222,7 @@
           </ElSelect>
         </ElFormItem>
         <ElFormItem label="原因">
-          <ElInput
-            v-model="statusForm.reason"
-            type="textarea"
-            :rows="4"
-            :maxlength="INPUT_LIMITS.REVIEW_REASON"
-            show-word-limit
-          />
+          <ElInput v-model="statusForm.reason" type="textarea" :rows="4" />
         </ElFormItem>
       </ElForm>
 
@@ -339,8 +326,6 @@
             type="textarea"
             :rows="4"
             placeholder="可选，便于审计与自动退款"
-            :maxlength="INPUT_LIMITS.REVIEW_REASON"
-            show-word-limit
           />
         </ElFormItem>
       </ElForm>
@@ -477,30 +462,6 @@
         </div>
       </template>
     </ElDialog>
-
-    <VpsDetailDrawer
-      v-model:visible="detailVisible"
-      :detail="detailData"
-      :loading="detailLoading"
-      :can-refresh="canRefresh"
-      :can-update="canUpdate"
-      :can-delete="canDelete"
-      :can-lock="canLock"
-      :can-unlock="canUnlock"
-      :can-resize="canResize"
-      :can-emergency-renew="canEmergencyRenew"
-      :can-update-status="canUpdateStatus"
-      :can-update-expire="canUpdateExpire"
-      @edit="openEdit(detailData)"
-      @status="openStatus(detailData)"
-      @resize="openResize(detailData)"
-      @expire="openExpire(detailData)"
-      @refresh="handleRefresh(detailData)"
-      @renew="openRenew(detailData)"
-      @lock="confirmLock(detailData)"
-      @unlock="confirmUnlock(detailData)"
-      @delete="openDelete(detailData)"
-    />
   </div>
 </template>
 
@@ -524,7 +485,6 @@
     listRegions,
     listAdminUsers,
     listAdminVps,
-    getAdminVpsDetail,
     lockAdminVps,
     refreshAdminVps,
     resizeAdminVps,
@@ -536,35 +496,13 @@
   import ArtButtonMore from '@/components/core/forms/art-button-more/index.vue'
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
   import { useTable } from '@/hooks/core/useTable'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
-  import { INPUT_LIMITS } from '@/constants/inputLimits'
   import { ElMessage, ElMessageBox } from 'element-plus'
-  import VpsDetailDrawer from './modules/vps-detail-drawer.vue'
   import VpsSearch from './modules/vps-search.vue'
 
   defineOptions({ name: 'VpsPage' })
 
-  function hasAdminPermission(
-    grantedPermissions: string[] | undefined,
-    requiredPermissions: string | string[]
-  ) {
-    const granted = Array.isArray(grantedPermissions) ? grantedPermissions : []
-    const required = Array.isArray(requiredPermissions)
-      ? requiredPermissions
-      : [requiredPermissions]
-    return required.some((permission) =>
-      granted.some(
-        (grantedPermission) =>
-          grantedPermission === '*' ||
-          grantedPermission === permission ||
-          (grantedPermission.endsWith('*') && permission.startsWith(grantedPermission.slice(0, -1)))
-      )
-    )
-  }
-
   const fetchAdminVps = async (params: Record<string, unknown> = {}) =>
     (await listAdminVps(params)).data
-  const fetchAdminVpsDetail = async (id: number | string) => (await getAdminVpsDetail(id)).data
   const fetchAdminUsers = async (params: Record<string, unknown> = {}) =>
     (await listAdminUsers(params)).data
   const fetchAdminGoodsTypes = async () => {
@@ -577,6 +515,8 @@
     (await listPlanGroups(params)).data
   const fetchAdminPackages = async (params: Record<string, unknown> = {}) =>
     (await listPackages(params)).data
+
+  type VpsRecordLike = VpsRecord & Record<string, unknown>
 
   interface VpsSearchForm {
     keyword: string
@@ -677,8 +617,6 @@
   ] as const
 
   const showSearchBar = ref(true)
-  const detailLoading = ref(false)
-
   const createVisible = ref(false)
   const statusVisible = ref(false)
   const renewVisible = ref(false)
@@ -686,7 +624,6 @@
   const expireVisible = ref(false)
   const deleteVisible = ref(false)
   const editVisible = ref(false)
-  const detailVisible = ref(false)
 
   const createSubmitting = ref(false)
   const statusSubmitting = ref(false)
@@ -697,7 +634,6 @@
   const editSubmitting = ref(false)
 
   const searchForm = ref<VpsSearchForm>(createDefaultSearchForm())
-  const detailData = ref<VpsTableRow | null>(null)
   const activeRecord = ref<VpsTableRow | null>(null)
 
   const createUsers = ref<CreateUserOption[]>([])
@@ -767,28 +703,6 @@
   })
 
   const fetchData = refreshData
-  const adminAuth = useAdminAuthStore()
-  const info = computed(() => ({ buttons: adminAuth.profile?.permissions || [] }))
-  const route = useRoute()
-  const router = useRouter()
-
-  const canView = computed(() => hasAdminPermission(info.value?.buttons, ['vps.view']))
-  const canCreate = computed(() => hasAdminPermission(info.value?.buttons, ['vps.create']))
-  const canUpdate = computed(() => hasAdminPermission(info.value?.buttons, ['vps.update']))
-  const canDelete = computed(() => hasAdminPermission(info.value?.buttons, ['vps.delete']))
-  const canLock = computed(() => hasAdminPermission(info.value?.buttons, ['vps.lock']))
-  const canUnlock = computed(() => hasAdminPermission(info.value?.buttons, ['vps.unlock']))
-  const canResize = computed(() => hasAdminPermission(info.value?.buttons, ['vps.resize']))
-  const canRefresh = computed(() => hasAdminPermission(info.value?.buttons, ['vps.refresh']))
-  const canEmergencyRenew = computed(() =>
-    hasAdminPermission(info.value?.buttons, ['vps.emergency_renew'])
-  )
-  const canUpdateStatus = computed(() =>
-    hasAdminPermission(info.value?.buttons, ['vps.admin_status'])
-  )
-  const canUpdateExpire = computed(() =>
-    hasAdminPermission(info.value?.buttons, ['vps.update_expire'])
-  )
 
   const quickStatus = computed({
     get: () => {
@@ -803,29 +717,6 @@
       }
       Object.assign(searchParams, { status })
       getData()
-    }
-  })
-
-  watch(
-    () => route.query.id,
-    (value) => {
-      const idText = Array.isArray(value) ? value[0] : value
-      const id = Number(idText || 0)
-
-      if (!id || Number.isNaN(id)) {
-        detailVisible.value = false
-        detailData.value = null
-        return
-      }
-
-      loadDetail(id)
-    },
-    { immediate: true }
-  )
-
-  watch(detailVisible, (visible) => {
-    if (!visible && route.query.id) {
-      clearDetailQuery()
     }
   })
 
@@ -941,16 +832,30 @@
     return status === 'locked' || status === 'expired_locked'
   }
 
-  function normalizeVps(row?: VpsRecord): VpsTableRow {
-    const automationState = normalizeNullableNumber(row?.automation_state)
-    const rawStatus = String(row?.status || '')
+  function readVpsField(row: VpsRecordLike | undefined, field: string, ...legacyFields: string[]) {
+    const source = row || {}
+    for (const key of [field, ...legacyFields]) {
+      const value = source[key]
+      if (value !== undefined && value !== null && value !== '') {
+        return value
+      }
+    }
+    return undefined
+  }
+
+  function normalizeVps(row?: VpsRecordLike): VpsTableRow {
+    const automationState = normalizeNullableNumber(
+      readVpsField(row, 'automation_state', 'AutomationState')
+    )
+    const rawStatus = String(readVpsField(row, 'status', 'Status') || '')
+    const expireAt = normalizeNullableString(readVpsField(row, 'expire_at', 'ExpireAt'))
     const baseStatus =
       automationState !== null && automationState !== undefined
         ? statusFromAutomation(automationState)
         : rawStatus
     const resolvedStatus = shouldShowExpiredLocked(
       {
-        expire_at: normalizeNullableString(row?.expire_at)
+        expire_at: expireAt
       },
       baseStatus
     )
@@ -958,36 +863,55 @@
       : baseStatus
 
     return {
-      id: normalizeNullableNumber(row?.id),
-      user_id: normalizeNullableNumber(row?.user_id),
-      order_item_id: normalizeNullableNumber(row?.order_item_id),
-      goods_type_id: normalizeNullableNumber(row?.goods_type_id),
-      automation_instance_id: String(row?.automation_instance_id || ''),
-      name: String(row?.name || ''),
-      region: String(row?.region || ''),
-      region_id: normalizeNullableNumber(row?.region_id),
-      line_id: normalizeNullableNumber(row?.line_id),
-      package_id: normalizeNullableNumber(row?.package_id),
-      package_name: String(row?.package_name || ''),
-      cpu: Number(row?.cpu || 0),
-      memory_gb: Number(row?.memory_gb || 0),
-      disk_gb: Number(row?.disk_gb || 0),
-      bandwidth_mbps: Number(row?.bandwidth_mbps || 0),
-      port_num: Number(row?.port_num || 0),
-      monthly_price: Number(row?.monthly_price || 0),
-      spec: normalizeRecord(row?.spec),
-      system_id: normalizeNullableNumber(row?.system_id),
+      id: normalizeNullableNumber(readVpsField(row, 'id', 'ID', 'Id')),
+      user_id: normalizeNullableNumber(readVpsField(row, 'user_id', 'UserID', 'UserId')),
+      order_item_id: normalizeNullableNumber(
+        readVpsField(row, 'order_item_id', 'OrderItemID', 'OrderItemId')
+      ),
+      goods_type_id: normalizeNullableNumber(
+        readVpsField(row, 'goods_type_id', 'GoodsTypeID', 'GoodsTypeId')
+      ),
+      automation_instance_id: String(
+        readVpsField(
+          row,
+          'automation_instance_id',
+          'AutomationInstanceID',
+          'AutomationInstanceId'
+        ) || ''
+      ),
+      name: String(readVpsField(row, 'name', 'Name') || ''),
+      region: String(readVpsField(row, 'region', 'Region') || ''),
+      region_id: normalizeNullableNumber(readVpsField(row, 'region_id', 'RegionID', 'RegionId')),
+      line_id: normalizeNullableNumber(readVpsField(row, 'line_id', 'LineID', 'LineId')),
+      package_id: normalizeNullableNumber(
+        readVpsField(row, 'package_id', 'PackageID', 'PackageId')
+      ),
+      package_name: String(readVpsField(row, 'package_name', 'PackageName') || ''),
+      cpu: Number(readVpsField(row, 'cpu', 'CPU') || 0),
+      memory_gb: Number(readVpsField(row, 'memory_gb', 'MemoryGB', 'MemoryGb') || 0),
+      disk_gb: Number(readVpsField(row, 'disk_gb', 'DiskGB', 'DiskGb') || 0),
+      bandwidth_mbps: Number(
+        readVpsField(row, 'bandwidth_mbps', 'BandwidthMbps', 'BandwidthMB') || 0
+      ),
+      port_num: Number(readVpsField(row, 'port_num', 'PortNum') || 0),
+      monthly_price: Number(readVpsField(row, 'monthly_price', 'MonthlyPrice') || 0),
+      spec: normalizeRecord(readVpsField(row, 'spec', 'Spec')),
+      system_id: normalizeNullableNumber(readVpsField(row, 'system_id', 'SystemID', 'SystemId')),
       status: resolvedStatus,
       automation_state: automationState,
-      admin_status: String(row?.admin_status || ''),
-      expire_at: normalizeNullableString(row?.expire_at),
-      destroy_at: normalizeNullableString(row?.destroy_at),
-      destroy_in_days: normalizeNullableNumber(row?.destroy_in_days),
-      panel_url_cache: String(row?.panel_url_cache || ''),
-      access_info: normalizeRecord(row?.access_info),
-      last_emergency_renew_at: normalizeNullableString(row?.last_emergency_renew_at),
-      created_at: String(row?.created_at || ''),
-      updated_at: String(row?.updated_at || '')
+      admin_status: String(readVpsField(row, 'admin_status', 'AdminStatus', 'Admin_State') || ''),
+      expire_at: expireAt,
+      destroy_at: normalizeNullableString(readVpsField(row, 'destroy_at', 'DestroyAt')),
+      destroy_in_days: normalizeNullableNumber(
+        readVpsField(row, 'destroy_in_days', 'DestroyInDays')
+      ),
+      panel_url_cache: String(readVpsField(row, 'panel_url_cache', 'PanelURLCache') || ''),
+      access_info: normalizeRecord(readVpsField(row, 'access_info', 'AccessInfo')),
+      last_emergency_renew_at: normalizeNullableString(
+        readVpsField(row, 'last_emergency_renew_at', 'LastEmergencyRenewAt')
+      ),
+      created_at: String(readVpsField(row, 'created_at', 'CreatedAt') || ''),
+      updated_at: String(readVpsField(row, 'updated_at', 'UpdatedAt') || '')
     }
   }
 
@@ -1054,16 +978,12 @@
     return `${user.username || '用户'} (#${user.id}) ${user.email || ''}`.trim()
   }
 
-  function hasActiveFilters() {
-    return Boolean(searchForm.value.keyword.trim() || searchForm.value.status)
-  }
-
-  function applyClientFilters(items: VpsTableRow[]) {
+  function applyClientFilters(items: VpsTableRow[], filters = searchForm.value) {
     let rows = [...items]
-    const keyword = searchForm.value.keyword.trim().toLowerCase()
+    const keyword = filters.keyword.trim().toLowerCase()
 
-    if (searchForm.value.status) {
-      rows = rows.filter((item) => item.admin_status === searchForm.value.status)
+    if (filters.status) {
+      rows = rows.filter((item) => item.admin_status === filters.status)
     }
 
     if (keyword) {
@@ -1206,50 +1126,58 @@
         key: 'status',
         label: '设置状态',
         icon: 'ri:shield-keyhole-line',
-        disabled: !canUpdateStatus.value || processing
+        auth: 'vps.admin_status',
+        disabled: processing
       },
       {
         key: 'expire',
         label: '修改到期',
         icon: 'ri:calendar-event-line',
-        disabled: !canUpdateExpire.value || processing
+        auth: 'vps.update_expire',
+        disabled: processing
       },
       {
         key: 'refresh',
         label: '刷新',
         icon: 'ri:refresh-line',
-        disabled: !canRefresh.value || processing
+        auth: 'vps.refresh',
+        disabled: processing
       },
       {
         key: 'renew',
         label: '紧急续费',
         icon: 'ri:loop-right-line',
-        disabled: !canEmergencyRenew.value || processing
+        auth: 'vps.emergency_renew',
+        disabled: processing
       },
       {
         key: 'lock',
         label: '锁定',
         icon: 'ri:lock-2-line',
-        disabled: !canLock.value || processing
+        auth: 'vps.lock',
+        disabled: processing
       },
       {
         key: 'unlock',
         label: '解锁',
         icon: 'ri:lock-unlock-line',
-        disabled: !canUnlock.value || processing
+        auth: 'vps.unlock',
+        disabled: processing
       },
       {
         key: 'resize',
         label: '改配',
         icon: 'ri:expand-width-line',
-        disabled: !canResize.value || processing
+        auth: 'vps.resize',
+        disabled: processing
       },
       {
         key: 'delete',
         label: '删除',
         icon: 'ri:delete-bin-line',
         color: 'var(--el-color-danger)',
-        disabled: !canDelete.value || processing
+        auth: 'vps.delete',
+        disabled: processing
       }
     ]
   }
@@ -1257,65 +1185,51 @@
   async function fetchVpsTable(
     params: VpsTableParams
   ): Promise<Api.Common.PaginatedResponse<VpsTableRow>> {
-    const payload = await fetchAdminVps({
-      limit: params.size,
-      offset: (params.current - 1) * params.size
-    })
-    searchForm.value = {
-      keyword: params.keyword || '',
+    const filters = {
+      keyword: String(params.keyword || ''),
       status: params.status || undefined
     }
-    const records = applyClientFilters((payload.items || []).map((item) => normalizeVps(item)))
-    const total = hasActiveFilters() ? records.length : (payload.total ?? records.length)
-    return { records, current: params.current, size: params.size, total }
-  }
+    const hasFilters = Boolean(filters.keyword.trim() || filters.status)
+    let payload: { items?: VpsRecord[]; total?: number }
 
-  async function loadDetail(id: number) {
-    detailLoading.value = true
+    if (!hasFilters) {
+      payload = await fetchAdminVps({
+        limit: params.size,
+        offset: (params.current - 1) * params.size
+      })
+    } else {
+      // The admin endpoint only pages raw instances. Collect every raw page before
+      // filtering so a match on a later page remains reachable from the UI.
+      const pageSize = 500
+      const allItems: VpsRecord[] = []
+      let offset = 0
+      let total = 0
 
-    try {
-      const payload = await fetchAdminVpsDetail(id)
-      detailData.value = normalizeVps(payload)
-      detailVisible.value = true
-    } catch {
-      detailVisible.value = false
-      detailData.value = null
-      clearDetailQuery()
-    } finally {
-      detailLoading.value = false
-    }
-  }
-
-  function clearDetailQuery() {
-    const query = { ...route.query }
-    delete query.id
-    router.replace({ query })
-  }
-
-  async function reloadCurrentDetail() {
-    if (!detailData.value?.id) {
-      return
-    }
-
-    await loadDetail(detailData.value.id)
-  }
-
-  function openDetail(row?: VpsTableRow | null) {
-    if (!row?.id) {
-      return
-    }
-
-    if (String(route.query.id || '') === String(row.id)) {
-      loadDetail(row.id)
-      return
-    }
-
-    router.replace({
-      query: {
-        ...route.query,
-        id: String(row.id)
+      while (allItems.length < total || (offset === 0 && total === 0)) {
+        const page = await fetchAdminVps({ limit: pageSize, offset })
+        const items = page.items || []
+        allItems.push(...items)
+        total = Number(page.total ?? allItems.length)
+        if (!items.length || allItems.length >= total) {
+          break
+        }
+        offset += items.length
       }
-    })
+
+      payload = { items: allItems, total }
+    }
+
+    searchForm.value = {
+      keyword: filters.keyword,
+      status: filters.status
+    }
+    const normalized = (payload.items || []).map((item) => normalizeVps(item as VpsRecordLike))
+    const filtered = hasFilters ? applyClientFilters(normalized, filters) : normalized
+    const records = hasFilters
+      ? filtered.slice((params.current - 1) * params.size, params.current * params.size)
+      : filtered
+    const resultTotal = hasFilters ? filtered.length : (payload.total ?? records.length)
+    return { records, current: params.current, size: params.size, total: resultTotal }
   }
 
   function handleSearch(params: VpsSearchForm) {
@@ -1505,9 +1419,6 @@
       statusVisible.value = false
       ElMessage.success('已更新状态')
       await fetchData()
-      if (detailData.value?.id === activeRecord.value.id) {
-        await reloadCurrentDetail()
-      }
     } finally {
       statusSubmitting.value = false
     }
@@ -1534,9 +1445,6 @@
       renewVisible.value = false
       ElMessage.success('已触发紧急续费')
       await fetchData()
-      if (detailData.value?.id === activeRecord.value.id) {
-        await reloadCurrentDetail()
-      }
     } finally {
       renewSubmitting.value = false
     }
@@ -1602,9 +1510,6 @@
       expireVisible.value = false
       ElMessage.success('已修改到期时间')
       await fetchData()
-      if (detailData.value?.id === activeRecord.value.id) {
-        await reloadCurrentDetail()
-      }
     } finally {
       expireSubmitting.value = false
     }
@@ -1632,11 +1537,6 @@
       deleteVisible.value = false
       ElMessage.success('已删除')
       await fetchData()
-
-      if (detailData.value?.id === activeRecord.value.id) {
-        detailVisible.value = false
-        detailData.value = null
-      }
     } finally {
       deleteSubmitting.value = false
     }
@@ -1694,9 +1594,6 @@
       editVisible.value = false
       ElMessage.success('已更新 VPS')
       await fetchData()
-      if (detailData.value?.id === activeRecord.value.id) {
-        await reloadCurrentDetail()
-      }
     } finally {
       editSubmitting.value = false
     }
@@ -1706,7 +1603,7 @@
     row: VpsTableRow,
     handler: () => Promise<unknown>,
     successMessage: string,
-    options: { reloadTable?: boolean; reloadDetail?: boolean } = {}
+    options: { reloadTable?: boolean } = {}
   ) {
     if (!row.id) {
       return
@@ -1720,10 +1617,6 @@
 
       if (options.reloadTable !== false) {
         await fetchData()
-      }
-
-      if (options.reloadDetail !== false && detailData.value?.id === row.id) {
-        await reloadCurrentDetail()
       }
     } finally {
       setRowProcessing(row.id, false)
@@ -1783,27 +1676,6 @@
         openDelete(row)
         break
     }
-  }
-
-  function escapeCsvCell(value: string | number | null | undefined) {
-    const text = String(value ?? '')
-    return `"${text.replace(/"/g, '""')}"`
-  }
-
-  function exportCsv() {
-    const rows = tableData.value.map((item) =>
-      [escapeCsvCell(item.id), escapeCsvCell(item.status)].join(',')
-    )
-    const content = ['id,status', ...rows].join('\n')
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-
-    link.href = url
-    link.download = 'admin-vps.csv'
-    link.click()
-
-    URL.revokeObjectURL(url)
   }
 </script>
 

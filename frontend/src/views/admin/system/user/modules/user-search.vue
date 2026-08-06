@@ -4,16 +4,27 @@
     v-model="formData"
     :items="formItems"
     :rules="rules"
+    :isExpand="true"
     :showExpand="false"
     @reset="handleReset"
     @search="handleSearch"
-  />
+  >
+    <template #advanced>
+      <ElPopover trigger="click" placement="bottom-start">
+        <template #reference>
+          <ElButton>高级筛选</ElButton>
+        </template>
+        <span>无高级筛选项</span>
+      </ElPopover>
+    </template>
+  </ArtSearchBar>
 </template>
 
 <script setup lang="ts">
   interface UserSearchForm {
     keyword: string
     status?: string
+    range?: string[]
   }
 
   interface Props {
@@ -62,6 +73,24 @@
         placeholder: '请选择状态',
         options: statusOptions.value
       }
+    },
+    {
+      label: '日期范围',
+      key: 'range',
+      type: 'daterange',
+      props: {
+        type: 'daterange',
+        clearable: true,
+        rangeSeparator: '至',
+        startPlaceholder: '开始日期',
+        endPlaceholder: '结束日期',
+        valueFormat: 'YYYY-MM-DD'
+      }
+    },
+    {
+      label: '',
+      key: 'advanced',
+      type: 'input'
     }
   ])
 

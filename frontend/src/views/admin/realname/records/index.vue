@@ -5,7 +5,7 @@
       v-model="searchForm"
       :items="searchItems"
       :show-expand="false"
-      @search="handleSearch"
+      :show-search="false"
       @reset="resetSearchParams"
     />
 
@@ -73,7 +73,11 @@
       key: 'user_id',
       label: '用户 ID',
       type: 'input',
-      props: { clearable: true, placeholder: '按用户 ID 搜索' }
+      props: {
+        clearable: true,
+        placeholder: '按用户 ID 搜索',
+        onInput: (value: string) => triggerFilter('user_id', value)
+      }
     },
     {
       key: 'status',
@@ -81,6 +85,7 @@
       type: 'select',
       props: {
         clearable: true,
+        onChange: (value?: string) => triggerFilter('status', value),
         options: [
           { label: '待审核', value: 'pending' },
           { label: '已通过', value: 'verified' },
@@ -91,11 +96,11 @@
   ])
 
   const fetchRecords = async (params: TableParams) => {
-    const userId = Number(String(params.user_id ?? '').trim())
+    const userId = String(params.user_id ?? '').trim()
     const response = await listRealNameRecords({
       limit: params.size,
       offset: (params.current - 1) * params.size,
-      user_id: Number.isFinite(userId) && userId > 0 ? userId : undefined,
+      user_id: userId || undefined,
       status: params.status || undefined
     })
     const rows = (response.data?.items ?? []).map(normalizeRecord)
@@ -147,8 +152,9 @@
     }
   }
 
-  function handleSearch(params: SearchForm): void {
-    Object.assign(searchParams, params)
+  function triggerFilter(key: keyof SearchForm, value?: string): void {
+    searchForm.value[key] = value
+    Object.assign(searchParams, searchForm.value, { current: 1 })
     getData()
   }
 

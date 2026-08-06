@@ -8,7 +8,7 @@
   >
     <ElForm label-position="top">
       <ElFormItem label="名称">
-        <ElInput v-model.trim="localForm.name" maxlength="80" placeholder="请输入名称" />
+        <ElInput v-model.trim="localForm.name" placeholder="请输入名称" />
       </ElFormItem>
       <ElRow :gutter="12">
         <ElCol :span="12"

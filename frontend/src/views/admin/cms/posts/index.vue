@@ -84,11 +84,7 @@
         <ElRow :gutter="16">
           <ElCol :span="12">
             <ElFormItem label="标题" prop="title">
-              <ElInput
-                v-model.trim="dialogForm.title"
-                :maxlength="INPUT_LIMITS.CMS_TITLE"
-                placeholder="请输入文章标题"
-              />
+              <ElInput v-model.trim="dialogForm.title" placeholder="请输入文章标题" />
             </ElFormItem>
           </ElCol>
 
@@ -96,7 +92,7 @@
             <ElFormItem label="分类" prop="category_id">
               <ElSelect v-model="dialogForm.category_id" placeholder="请选择分类">
                 <ElOption
-                  v-for="item in filteredDialogCategories"
+                  v-for="item in categoryOptions"
                   :key="item.id"
                   :label="item.name"
                   :value="item.id"
@@ -109,21 +105,13 @@
         <ElRow :gutter="16">
           <ElCol :span="12">
             <ElFormItem label="别名" prop="slug">
-              <ElInput
-                v-model.trim="dialogForm.slug"
-                :maxlength="INPUT_LIMITS.CMS_SLUG"
-                placeholder="请输入 URL 别名"
-              />
+              <ElInput v-model.trim="dialogForm.slug" placeholder="请输入 URL 别名" />
             </ElFormItem>
           </ElCol>
 
           <ElCol :span="12">
             <ElFormItem label="封面地址">
-              <ElInput
-                v-model.trim="dialogForm.cover_url"
-                :maxlength="INPUT_LIMITS.URL"
-                placeholder="/uploads/example.jpg"
-              />
+              <ElInput v-model.trim="dialogForm.cover_url" placeholder="/uploads/example.jpg" />
             </ElFormItem>
           </ElCol>
         </ElRow>
@@ -133,8 +121,6 @@
             v-model="dialogForm.summary"
             type="textarea"
             :rows="3"
-            :maxlength="INPUT_LIMITS.CMS_SUMMARY"
-            show-word-limit
             placeholder="列表页展示的文章摘要"
           />
         </ElFormItem>
@@ -175,7 +161,7 @@
           </ElCol>
         </ElRow>
 
-        <ElFormItem label="发布时间">
+        <ElFormItem v-if="dialogForm.status === 'published'" label="发布时间">
           <ElDatePicker
             v-model="dialogForm.published_at"
             type="datetime"
@@ -187,11 +173,11 @@
         </ElFormItem>
 
         <ElFormItem label="正文内容" prop="content_html">
-          <ArtWangEditor
+          <ElInput
             v-model="dialogForm.content_html"
-            height="360px"
+            type="textarea"
+            :rows="18"
             placeholder="请输入正文 HTML 内容"
-            :excludeKeys="['fontFamily', 'uploadImage']"
           />
         </ElFormItem>
       </ElForm>
@@ -215,13 +201,10 @@
     deleteCMSPost,
     fetchCMSCategories,
     fetchCMSPosts,
-    hasAdminPermission,
     updateCMSPost
   } from '@/services/admin'
-  import ArtWangEditor from '@/components/core/forms/art-wang-editor/index.vue'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { useTable } from '@/hooks/core/useTable'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
-  import { INPUT_LIMITS } from '@/constants/inputLimits'
   import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 
   defineOptions({ name: 'CmsPostsPage' })
@@ -267,7 +250,6 @@
   interface FilterState {
     category_id?: number
     status?: string
-    lang?: string
   }
 
   interface PostTableParams extends Api.Common.CommonSearchParams, FilterState {}
@@ -277,8 +259,7 @@
     { label: '英文', value: 'en-US' }
   ]
 
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
+  const { hasAuth } = useAuth()
 
   const initialized = ref(false)
   const dialogVisible = ref(false)
@@ -288,8 +269,7 @@
   const categoryOptions = ref<CategoryOption[]>([])
   const filters = ref<FilterState>({
     category_id: undefined,
-    status: undefined,
-    lang: undefined
+    status: undefined
   })
   const dialogForm = reactive<PostDialogForm>(createDefaultDialogForm())
   const formRef = ref<FormInstance>()
@@ -317,12 +297,6 @@
           { label: '已发布', value: 'published' }
         ]
       }
-    },
-    {
-      key: 'lang',
-      label: '语言',
-      type: 'select',
-      props: { clearable: true, placeholder: '全部语言', options: languageOptions }
     }
   ])
 
@@ -352,7 +326,6 @@
           minWidth: 160,
           formatter: (row: PostRow) => getCategoryName(row.category_id)
         },
-        { prop: 'lang', label: '语言', width: 140 },
         { prop: 'status', label: '状态', width: 120, useSlot: true },
         { prop: 'published_at', label: '发布时间', minWidth: 180, useSlot: true },
         {
@@ -366,40 +339,14 @@
     }
   })
 
-  const canView = computed(() => hasAdminPermission(info.value?.permissions, ['cms_post.list']))
-  const canCreate = computed(() => hasAdminPermission(info.value?.permissions, ['cms_post.create']))
-  const canUpdate = computed(() => hasAdminPermission(info.value?.permissions, ['cms_post.update']))
-  const canDelete = computed(() => hasAdminPermission(info.value?.permissions, ['cms_post.delete']))
-
-  const filteredDialogCategories = computed(() => {
-    const lang = String(dialogForm.lang || '').trim()
-    if (!lang) {
-      return categoryOptions.value
-    }
-
-    return categoryOptions.value.filter((item) => item.lang === lang)
-  })
+  const canView = computed(() => hasAuth('cms_post.list'))
+  const canCreate = computed(() => hasAuth('cms_post.create'))
+  const canUpdate = computed(() => hasAuth('cms_post.update'))
+  const canDelete = computed(() => hasAuth('cms_post.delete'))
 
   const rules = computed<FormRules>(() => ({
-    title: [
-      { required: true, message: '请输入标题', trigger: 'blur' },
-      {
-        max: INPUT_LIMITS.CMS_TITLE,
-        message: `标题长度不能超过 ${INPUT_LIMITS.CMS_TITLE} 个字符`,
-        trigger: 'blur'
-      }
-    ],
-    slug: [
-      { required: true, message: '请输入别名', trigger: 'blur' },
-      {
-        max: INPUT_LIMITS.CMS_SLUG,
-        message: `别名长度不能超过 ${INPUT_LIMITS.CMS_SLUG} 个字符`,
-        trigger: 'blur'
-      }
-    ],
-    category_id: [{ required: true, message: '请选择分类', trigger: 'change' }],
-    lang: [{ required: true, message: '请选择语言', trigger: 'change' }],
-    status: [{ required: true, message: '请选择状态', trigger: 'change' }]
+    title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
+    category_id: [{ required: true, message: '请选择分类', trigger: 'change' }]
   }))
 
   watch(
@@ -411,22 +358,6 @@
       }
     },
     { immediate: true }
-  )
-
-  watch(
-    () => dialogForm.lang,
-    (lang) => {
-      if (!lang) {
-        return
-      }
-
-      if (
-        dialogForm.category_id &&
-        !filteredDialogCategories.value.some((item) => item.id === dialogForm.category_id)
-      ) {
-        dialogForm.category_id = null
-      }
-    }
   )
 
   function createDefaultDialogForm(): PostDialogForm {
@@ -563,8 +494,7 @@
       limit: params.size,
       offset: (params.current - 1) * params.size,
       category_id: params.category_id || undefined,
-      status: params.status || undefined,
-      lang: params.lang || undefined
+      status: params.status || undefined
     })
 
     const records = (payload.items || []).map((item) => normalizePost(item))
@@ -582,7 +512,7 @@
   }
 
   async function handleReset() {
-    filters.value = { category_id: undefined, status: undefined, lang: undefined }
+    filters.value = { category_id: undefined, status: undefined }
     await resetSearchParams()
   }
 
@@ -626,7 +556,7 @@
     dialogSubmitting.value = true
 
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         category_id: Number(dialogForm.category_id || 0),
         title: String(dialogForm.title || '').trim(),
         slug: String(dialogForm.slug || '').trim(),
@@ -636,9 +566,11 @@
         lang: String(dialogForm.lang || 'zh-CN').trim() || 'zh-CN',
         status: String(dialogForm.status || 'draft').trim() || 'draft',
         pinned: Boolean(dialogForm.pinned),
-        sort_order: Number(dialogForm.sort_order || 0),
-        published_at:
-          dialogForm.status === 'published' ? toISOStringOrEmpty(dialogForm.published_at) : ''
+        sort_order: Number(dialogForm.sort_order || 0)
+      }
+
+      if (dialogForm.status === 'published' && dialogForm.published_at) {
+        payload.published_at = toISOStringOrEmpty(dialogForm.published_at)
       }
 
       if (dialogMode.value === 'create') {
@@ -651,6 +583,8 @@
 
       dialogVisible.value = false
       await fetchData()
+    } catch (error: any) {
+      ElMessage.error(error?.response?.data?.error || '操作失败')
     } finally {
       dialogSubmitting.value = false
     }

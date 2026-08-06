@@ -14,16 +14,6 @@
         :loading="loading"
         @refresh="fetchData"
       >
-        <template #left>
-          <ElSpace wrap>
-            <ElRadioGroup v-model="quickStatus" class="quick-status-group">
-              <ElRadioButton label="all">全部</ElRadioButton>
-              <ElRadioButton v-for="item in quickStatusTabs" :key="item.value" :label="item.value">
-                {{ item.label }}
-              </ElRadioButton>
-            </ElRadioGroup>
-          </ElSpace>
-        </template>
       </ArtTableHeader>
 
       <ArtTable
@@ -36,7 +26,7 @@
         @pagination:current-change="handlePageCurrentChange"
       >
         <template #subject="{ row }">
-          <RouterLink :to="`/tickets/${row.id}`" class="subject-link">
+          <RouterLink :to="{ name: 'TicketDetail', params: { id: row.id } }" class="subject-link">
             <ArtSvgIcon icon="ri:message-2-line" class="subject-icon" />
             <span>{{ row.subject || '-' }}</span>
           </RouterLink>
@@ -103,13 +93,6 @@
     updated_at: string
   }
 
-  const quickStatusTabs = [
-    { label: '待处理', value: 'open' },
-    { label: '等待回复', value: 'waiting_user' },
-    { label: '处理中', value: 'waiting_admin' },
-    { label: '已关闭', value: 'closed' }
-  ] as const
-
   const router = useRouter()
   const showSearchBar = ref(true)
 
@@ -140,21 +123,6 @@
         { prop: 'updated_at', label: '最后回复', minWidth: 180, useSlot: true },
         { prop: 'operation', label: '操作', width: 100, fixed: 'right', useSlot: true }
       ]
-    }
-  })
-
-  const quickStatus = computed({
-    get: () => {
-      const status = searchForm.value.status || ''
-      return quickStatusTabs.some((item) => item.value === status) ? status : 'all'
-    },
-    set: (value: string) => {
-      searchForm.value = {
-        ...searchForm.value,
-        status: value === 'all' ? undefined : value
-      }
-      Object.assign(searchParams, searchForm.value)
-      getData()
     }
   })
 
@@ -298,15 +266,11 @@
       return
     }
 
-    router.push(`/tickets/${id}`)
+    router.push({ name: 'TicketDetail', params: { id: String(id) } })
   }
 </script>
 
 <style scoped lang="scss">
-  .quick-status-group {
-    flex-wrap: wrap;
-  }
-
   .subject-link {
     display: inline-flex;
     gap: 8px;

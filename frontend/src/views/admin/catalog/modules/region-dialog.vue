@@ -8,10 +8,10 @@
   >
     <ElForm label-position="top">
       <ElFormItem label="名称">
-        <ElInput v-model.trim="localForm.name" maxlength="80" placeholder="请输入名称" />
+        <ElInput v-model.trim="localForm.name" placeholder="请输入名称" />
       </ElFormItem>
       <ElFormItem label="代码">
-        <ElInput v-model.trim="localForm.code" maxlength="80" placeholder="请输入代码" />
+        <ElInput v-model.trim="localForm.code" placeholder="请输入代码" />
       </ElFormItem>
       <ElFormItem label="启用">
         <ElSwitch v-model="localForm.active" />

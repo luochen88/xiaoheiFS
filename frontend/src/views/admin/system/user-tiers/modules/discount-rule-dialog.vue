@@ -6,7 +6,7 @@
     destroy-on-close
     align-center
   >
-    <ElForm ref="formRef" :model="localForm" :rules="rules" label-position="top">
+    <ElForm :model="localForm" label-position="top">
       <ElFormItem label="对象范围" prop="scope">
         <ElSelect v-model="localForm.scope" placeholder="请选择范围" class="full-width">
           <ElOption
@@ -23,7 +23,7 @@
         :closable="false"
         class="discount-help"
         title="折扣说明"
-        description="折扣字段是减免值 ÷ 10000。计算公式：最终价 = 原价 × (1 - 折扣/10000)。例如原价 10 元，填 1000 后为 9 元。"
+        description="折扣字段是减免值(‰)。计算公式：最终价 = 原价 × (1 - 折扣/10000)。示例：原价10元，填0=10元，填1000=9元，填2000=8元。"
       />
 
       <ElRow v-if="needsTargetSelection" :gutter="12">
@@ -123,7 +123,7 @@
         </ElCol>
 
         <ElCol :span="8">
-          <ElFormItem label="固定价格(分)" prop="fixed_price">
+          <ElFormItem label="固定价格(分,套餐)" prop="fixed_price">
             <ElInputNumber v-model="localForm.fixed_price" :min="0" class="full-width" />
           </ElFormItem>
         </ElCol>
@@ -192,8 +192,6 @@
     CatalogPlanGroup,
     CatalogRegion
   } from '@/services/admin'
-  import type { FormInstance, FormRules } from 'element-plus'
-
   defineOptions({ name: 'UserTierDiscountRuleDialog' })
 
   export interface UserTierDiscountRuleFormValue {
@@ -246,8 +244,6 @@
   })
   const emit = defineEmits<Emits>()
 
-  const formRef = ref<FormInstance>()
-
   const dialogVisible = computed({
     get: () => props.visible,
     set: (value) => emit('update:visible', value)
@@ -274,8 +270,8 @@
 
   const goodsTypeOptions = computed(() =>
     props.goodsTypes.map((item) => ({
-      label: String(item.name || `#${item.id}`),
-      value: Number(item.id || 0)
+      label: String(item.name ?? item.Name ?? `#${item.id ?? item.ID}`),
+      value: Number(item.id ?? item.ID ?? 0)
     }))
   )
 
@@ -284,11 +280,11 @@
       .filter(
         (item) =>
           !localForm.goods_type_id ||
-          Number(item.goods_type_id || 0) === Number(localForm.goods_type_id)
+          Number(item.goods_type_id ?? item.GoodsTypeID ?? 0) === Number(localForm.goods_type_id)
       )
       .map((item) => ({
-        label: String(item.name || `#${item.id}`),
-        value: Number(item.id || 0)
+        label: String(item.name ?? item.Name ?? `#${item.id ?? item.ID}`),
+        value: Number(item.id ?? item.ID ?? 0)
       }))
   )
 
@@ -297,15 +293,16 @@
       .filter(
         (item) =>
           !localForm.goods_type_id ||
-          Number(item.goods_type_id || 0) === Number(localForm.goods_type_id)
+          Number(item.goods_type_id ?? item.GoodsTypeID ?? 0) === Number(localForm.goods_type_id)
       )
       .filter(
         (item) =>
-          !localForm.region_id || Number(item.region_id || 0) === Number(localForm.region_id)
+          !localForm.region_id ||
+          Number(item.region_id ?? item.RegionID ?? 0) === Number(localForm.region_id)
       )
       .map((item) => ({
-        label: String(item.name || `#${item.id}`),
-        value: Number(item.id || 0)
+        label: String(item.name ?? item.Name ?? `#${item.id ?? item.ID}`),
+        value: Number(item.id ?? item.ID ?? 0)
       }))
   )
 
@@ -314,22 +311,22 @@
       .filter(
         (item) =>
           !localForm.goods_type_id ||
-          Number(item.goods_type_id || 0) === Number(localForm.goods_type_id)
+          Number(
+            item.goods_type_id ??
+              (item as CatalogPackage & { GoodsTypeID?: number }).GoodsTypeID ??
+              0
+          ) === Number(localForm.goods_type_id)
       )
       .filter(
         (item) =>
           !localForm.plan_group_id ||
-          Number(item.plan_group_id || 0) === Number(localForm.plan_group_id)
+          Number(item.plan_group_id ?? item.PlanGroupID ?? 0) === Number(localForm.plan_group_id)
       )
       .map((item) => ({
-        label: String(item.name || `#${item.id}`),
-        value: Number(item.id || 0)
+        label: String(item.name ?? item.Name ?? `#${item.id ?? item.ID}`),
+        value: Number(item.id ?? item.ID ?? 0)
       }))
   )
-
-  const rules = computed<FormRules>(() => ({
-    scope: [{ required: true, message: '请选择范围', trigger: 'change' }]
-  }))
 
   watch(
     () => props.visible,
@@ -340,7 +337,6 @@
 
       Object.assign(localForm, createDefaultForm(), props.formData)
       normalizeTargetByScope()
-      nextTick(() => formRef.value?.clearValidate())
     },
     { immediate: true }
   )
@@ -411,16 +407,7 @@
     localForm.package_id = 0
   }
 
-  async function handleSubmit() {
-    if (!formRef.value) {
-      return
-    }
-
-    const valid = await formRef.value.validate().catch(() => false)
-    if (!valid) {
-      return
-    }
-
+  function handleSubmit() {
     if (needGoodsType.value && !localForm.goods_type_id) {
       ElMessage.error('请选择类型')
       return

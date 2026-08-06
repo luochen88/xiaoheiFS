@@ -11,7 +11,7 @@
         <ElInputNumber v-model="localForm.image_id" :min="1" :precision="0" class="full-width" />
       </ElFormItem>
       <ElFormItem label="名称">
-        <ElInput v-model.trim="localForm.name" maxlength="120" placeholder="请输入名称" />
+        <ElInput v-model.trim="localForm.name" placeholder="请输入名称" />
       </ElFormItem>
       <ElFormItem label="类型">
         <ElSelect v-model="localForm.type" class="full-width" placeholder="请选择类型">

@@ -44,7 +44,7 @@
           <div class="logo-preview">
             <div class="logo-preview__media" aria-hidden="true">
               <img v-if="form.logo_url" :src="form.logo_url" alt="" />
-              <ArtSvgIcon v-else icon="ri:image-line" />
+              <DefaultLogoMark v-else :size="22" />
             </div>
             <span>未设置时使用默认 Logo</span>
           </div>
@@ -119,6 +119,9 @@
               </ElButton>
             </ElTooltip>
           </div>
+          <div class="field-help">
+            自定义管理后台访问路径，修改后将自动跳转到新路径（仅支持字母和数字）
+          </div>
         </template>
       </ArtForm>
     </ElCard>
@@ -127,6 +130,7 @@
 
 <script setup lang="ts">
   import type { FormRules } from 'element-plus'
+  import DefaultLogoMark from '@/components/brand/DefaultLogoMark.vue'
   import { useAuth } from '@/hooks/core/useAuth'
   import { clearAdminPathCache } from '@/services/adminPath'
   import { listSettings, updateSetting } from '@/services/admin'
@@ -548,6 +552,12 @@
   .admin-path-control {
     gap: 8px;
     width: 100%;
+  }
+
+  .field-help {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--art-gray-600);
   }
 
   @media (width <= 640px) {

@@ -220,13 +220,7 @@
               </div>
             </template>
 
-            <ArtRingChart
-              height="320px"
-              :data="shareChartData"
-              :center-text="shareCenterText"
-              :show-label="false"
-              :show-legend="false"
-            />
+            <div ref="shareChartRef" class="share-chart" aria-label="收入占比图表"></div>
 
             <div class="share-list">
               <div v-if="shareLeaders.length" class="share-items">
@@ -386,6 +380,11 @@
                   </ElButton>
                 </div>
               </template>
+              <template #order_no="{ row }">
+                <ElButton link type="primary" @click="copyOrderNo(row.order_no)">
+                  {{ row.order_no || '-' }}
+                </ElButton>
+              </template>
               <template #amount="{ row }">
                 <span :class="amountClass(Number(row.amount_cents || 0))">
                   {{ amountPrefix(Number(row.amount_cents || 0)) }}¥{{
@@ -422,8 +421,11 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, reactive, ref, watch } from 'vue'
+  import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
   import { useTable } from '@/hooks/core/useTable'
+  import { useChart } from '@/hooks/core/useChart'
+  import { useAuth } from '@/hooks/core/useAuth'
+  import { http } from '@/services/http'
   import type {
     GoodsType as CatalogGoodsType,
     Package as CatalogPackage,
@@ -439,7 +441,6 @@
     User
   } from '@/services/types'
   import {
-    exportRevenueAnalyticsAudit,
     getAdminUserDetail,
     getRevenueAnalyticsDetails,
     getRevenueAnalyticsOverview,
@@ -450,9 +451,7 @@
     listPlanGroups,
     listRegions
   } from '@/services/admin'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
   import ArtLineChart from '@/components/core/charts/art-line-chart/index.vue'
-  import ArtRingChart from '@/components/core/charts/art-ring-chart/index.vue'
   import UserFinanceDrawer from './modules/user-finance-drawer.vue'
 
   defineOptions({ name: 'RevenueAnalyticsPage' })
@@ -476,7 +475,9 @@
     (await getRevenueAnalyticsDetails(payload)).data
   const fetchAdminUserDetail = async (id: number | string) => (await getAdminUserDetail(id)).data
   const exportAdminRevenueAnalyticsAudit = async (payload: RevenueAnalyticsQuery) =>
-    (await exportRevenueAnalyticsAudit(payload)).data
+    http.post<Blob>('/admin/api/v1/dashboard/revenue-analytics/export', payload, {
+      responseType: 'blob'
+    })
 
   interface OptionItem {
     label: string
@@ -532,10 +533,15 @@
   const userFinanceRows = ref<RevenueAnalyticsDetailRecord[]>([])
   const userFinanceSummary = ref<UserFinanceSummary>(createEmptyUserFinanceSummary())
 
-  const adminAuth = useAdminAuthStore()
-  const info = computed(() => ({
-    buttons: (adminAuth.profile as { permissions?: string[] } | null)?.permissions || []
-  }))
+  const {
+    chartRef: shareChartRef,
+    initChart: initShareChart,
+    getChartInstance: getShareChartInstance,
+    getAnimationConfig,
+    getTooltipStyle
+  } = useChart()
+
+  const { hasAuth } = useAuth()
 
   const query = reactive<RevenueAnalyticsQuery>(createDefaultQuery())
   const rangeValue = ref<[Date, Date]>(defaultRange())
@@ -635,20 +641,9 @@
       }))
   })
 
-  const canView = computed(() => {
-    const perms = Array.isArray(info.value?.buttons) ? info.value.buttons : []
-    const roles = Array.isArray((info.value as any)?.roles) ? (info.value as any).roles : []
-
-    if (roles.includes('R_SUPER')) {
-      return true
-    }
-
-    return (
-      hasPermission(perms, '*') ||
-      hasPermission(perms, 'dashboard.revenue') ||
-      hasPermission(perms, 'dashboard.revenue_analytics_overview')
-    )
-  })
+  const canView = computed(
+    () => hasAuth('dashboard.revenue') || hasAuth('dashboard.revenue_analytics_overview')
+  )
 
   const hasActiveFilters = computed(() => {
     return Boolean(
@@ -694,6 +689,46 @@
   const shareCenterText = computed(
     () => `总收入\n¥${formatCents(overview.value.summary?.total_revenue_cents)}`
   )
+
+  function renderShareChart() {
+    if (!shareChartRef.value) {
+      return
+    }
+
+    initShareChart({
+      tooltip: getTooltipStyle('item', { formatter: '{b}: ¥{c}' }),
+      series: [
+        {
+          type: 'pie',
+          radius: ['50%', '80%'],
+          center: ['50%', '50%'],
+          label: { show: false },
+          itemStyle: { borderRadius: 10, borderWidth: 0 },
+          data: shareChartData.value,
+          ...getAnimationConfig()
+        }
+      ],
+      title: {
+        text: shareCenterText.value,
+        left: '50%',
+        top: '50%',
+        textAlign: 'center',
+        textVerticalAlign: 'middle',
+        textStyle: { fontSize: 18, fontWeight: 500, color: 'var(--el-text-color-secondary)' }
+      }
+    })
+
+    const chart = getShareChartInstance()
+    chart?.off('click')
+    chart?.on('click', (params: { dataIndex?: number }) => {
+      const item = overview.value.share_items?.[Number(params.dataIndex)]
+      if (item) {
+        void handleDrillDown(item)
+      }
+    })
+  }
+
+  watch([shareChartData, canView], () => nextTick(renderShareChart), { flush: 'post' })
 
   const trendChartData = computed(() => ({
     labels: trend.value.map((item) => String(item.bucket || '-')),
@@ -888,26 +923,14 @@
     }
   }
 
-  function hasPermission(perms: string[], required: string) {
-    const auth = String(required || '').trim()
-    if (!auth) {
-      return true
+  async function copyOrderNo(orderNo?: string | null) {
+    const value = String(orderNo || '').trim()
+    if (!value) {
+      return
     }
 
-    for (const permission of perms) {
-      if (permission === '*' || permission === auth) {
-        return true
-      }
-
-      if (typeof permission === 'string' && permission.endsWith('*')) {
-        const prefix = permission.slice(0, -1)
-        if (auth.startsWith(prefix)) {
-          return true
-        }
-      }
-    }
-
-    return false
+    await navigator.clipboard.writeText(value)
+    ElMessage.success('订单号已复制')
   }
 
   function inferLevelFromSelection(): RevenueAnalyticsLevel {
@@ -1541,10 +1564,16 @@
     exporting.value = true
 
     try {
-      const blob = await exportAdminRevenueAnalyticsAudit(createQueryPayload())
+      const response = await exportAdminRevenueAnalyticsAudit(createQueryPayload())
+      const blob = response.data
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      const fileName = `revenue_analytics_audit_${formatDateForFilename()}.csv`
+      const disposition = String(response.headers?.['content-disposition'] || '')
+      const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+      const plainName = disposition.match(/filename="?([^";]+)"?/i)?.[1]
+      const fileName = encodedName
+        ? decodeURIComponent(encodedName)
+        : plainName || `revenue_analytics_audit_${formatDateForFilename()}.csv`
 
       link.href = url
       link.download = fileName
@@ -1715,6 +1744,10 @@
 
   .share-list {
     margin-top: 18px;
+  }
+
+  .share-chart {
+    height: 320px;
   }
 
   .share-items,

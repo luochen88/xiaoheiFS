@@ -8,7 +8,7 @@
   >
     <ElForm ref="formRef" :model="localForm" :rules="rules" label-position="top">
       <ElFormItem label="名称" prop="name">
-        <ElInput v-model="localForm.name" maxlength="120" placeholder="请输入权限组名称" />
+        <ElInput v-model="localForm.name" placeholder="请输入权限组名称" />
       </ElFormItem>
 
       <ElFormItem label="描述" prop="description">
@@ -16,8 +16,6 @@
           v-model="localForm.description"
           type="textarea"
           :rows="3"
-          maxlength="500"
-          show-word-limit
           placeholder="请输入权限组描述"
         />
       </ElFormItem>
@@ -124,12 +122,12 @@
   const normalizedPermissions = computed(() =>
     [...props.permissions]
       .map((item) => ({
-        code: String(item.code || ''),
-        name: String(item.name || ''),
-        friendly_name: String(item.friendly_name || ''),
-        category: String(item.category || '其他'),
-        parent_code: String(item.parent_code || ''),
-        sort_order: Number(item.sort_order || 0)
+        code: String(item.code ?? item.Code ?? ''),
+        name: String(item.name ?? item.Name ?? ''),
+        friendly_name: String(item.friendly_name ?? item.FriendlyName ?? ''),
+        category: String(item.category ?? item.Category ?? '其他'),
+        parent_code: String(item.parent_code ?? item.ParentCode ?? ''),
+        sort_order: Number(item.sort_order ?? item.SortOrder ?? 0)
       }))
       .filter((item) => item.code)
       .sort((a, b) => {
@@ -230,7 +228,15 @@
   }
 
   function getPermissionLabel(permission: PermissionRecord) {
-    return String(permission.friendly_name || permission.name || permission.code || '-')
+    return String(
+      permission.friendly_name ??
+        permission.FriendlyName ??
+        permission.name ??
+        permission.Name ??
+        permission.code ??
+        permission.Code ??
+        '-'
+    )
   }
 
   function selectAll() {

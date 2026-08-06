@@ -37,6 +37,15 @@
     set: (value) => emit('update:modelValue', value)
   })
 
+  watch(
+    () => formData.value.status,
+    (status, previousStatus) => {
+      if (status !== previousStatus) {
+        emit('search', { ...formData.value })
+      }
+    }
+  )
+
   const formItems = computed(() => [
     {
       label: '状态',
@@ -48,7 +57,7 @@
         options: [
           { label: '待审核', value: 'pending_review' },
           { label: '已通过', value: 'approved' },
-          { label: '已驳回', value: 'rejected' }
+          { label: '已拒绝', value: 'rejected' }
         ]
       }
     },
@@ -58,13 +67,25 @@
       type: 'input',
       props: {
         clearable: true,
-        placeholder: '请输入用户 ID'
+        placeholder: '请输入用户 ID',
+        onBlur: emitUserSearch,
+        onKeyup: handleUserIdKeyup
       }
     }
   ])
 
   function handleReset() {
     emit('reset')
+  }
+
+  function emitUserSearch() {
+    emit('search', { ...formData.value })
+  }
+
+  function handleUserIdKeyup(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
+      emitUserSearch()
+    }
   }
 
   async function handleSearch(params: Record<string, any>) {

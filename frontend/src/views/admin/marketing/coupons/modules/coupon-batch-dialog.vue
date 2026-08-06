@@ -1,7 +1,7 @@
 <template>
   <ElDialog
     v-model="dialogVisible"
-    title="Batch Generate Coupons"
+    title="批量生成优惠码"
     width="720px"
     destroy-on-close
     align-center
@@ -9,29 +9,25 @@
     <ElForm label-position="top">
       <ElRow :gutter="12">
         <ElCol :xs="24" :md="8">
-          <ElFormItem label="Prefix">
-            <ElInput
-              v-model.trim="localForm.prefix"
-              :maxlength="INPUT_LIMITS.COUPON_BATCH_PREFIX"
-              placeholder="CP"
-            />
+          <ElFormItem label="前缀">
+            <ElInput v-model.trim="localForm.prefix" placeholder="CP" />
           </ElFormItem>
         </ElCol>
 
         <ElCol :xs="24" :md="8">
-          <ElFormItem label="Count">
+          <ElFormItem label="数量">
             <ElInputNumber v-model="localForm.count" :min="1" :max="1000" class="full-width" />
           </ElFormItem>
         </ElCol>
 
         <ElCol :xs="24" :md="8">
-          <ElFormItem label="Random Length">
+          <ElFormItem label="随机长度">
             <ElInputNumber v-model="localForm.length" :min="4" :max="16" class="full-width" />
           </ElFormItem>
         </ElCol>
 
         <ElCol :xs="24" :md="12">
-          <ElFormItem label="Discount (permille)">
+          <ElFormItem label="折扣（千分比）">
             <ElInputNumber
               v-model="localForm.discount_permille"
               :min="1"
@@ -42,12 +38,12 @@
         </ElCol>
 
         <ElCol :xs="24" :md="12">
-          <ElFormItem label="Coupon Group">
+          <ElFormItem label="商品组">
             <ElSelect
               v-model="localForm.product_group_id"
               filterable
               class="full-width"
-              placeholder="Select coupon group"
+              placeholder="请选择商品组"
             >
               <ElOption
                 v-for="item in groupOptions"
@@ -58,56 +54,19 @@
             </ElSelect>
           </ElFormItem>
         </ElCol>
-
-        <ElCol :xs="24" :md="6">
-          <ElFormItem label="Total Limit">
-            <ElInputNumber v-model="localForm.total_limit" class="full-width" />
-          </ElFormItem>
-        </ElCol>
-
-        <ElCol :xs="24" :md="6">
-          <ElFormItem label="Per User Limit">
-            <ElInputNumber v-model="localForm.per_user_limit" class="full-width" />
-          </ElFormItem>
-        </ElCol>
-
-        <ElCol :xs="12" :md="6">
-          <ElFormItem label="New Users Only">
-            <ElSwitch v-model="localForm.new_user_only" />
-          </ElFormItem>
-        </ElCol>
-
-        <ElCol :xs="12" :md="6">
-          <ElFormItem label="Active">
-            <ElSwitch v-model="localForm.active" />
-          </ElFormItem>
-        </ElCol>
       </ElRow>
-
-      <ElFormItem label="Note">
-        <ElInput
-          v-model.trim="localForm.note"
-          type="textarea"
-          :rows="4"
-          :maxlength="INPUT_LIMITS.COUPON_NOTE"
-          show-word-limit
-          placeholder="Optional note for generated coupons"
-        />
-      </ElFormItem>
     </ElForm>
 
     <template #footer>
       <div class="dialog-footer">
-        <ElButton @click="dialogVisible = false">Cancel</ElButton>
-        <ElButton type="primary" :loading="submitting" @click="handleSubmit"> Generate </ElButton>
+        <ElButton @click="dialogVisible = false">取消</ElButton>
+        <ElButton type="primary" :loading="submitting" @click="handleSubmit">生成</ElButton>
       </div>
     </template>
   </ElDialog>
 </template>
 
 <script setup lang="ts">
-  import { INPUT_LIMITS } from '@/constants/inputLimits'
-
   defineOptions({ name: 'CouponBatchDialog' })
 
   interface CouponBatchFormValue {

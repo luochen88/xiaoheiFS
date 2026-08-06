@@ -5,10 +5,8 @@
       <span></span><span></span><span></span>
     </div>
     <div class="maintenance-page__content">
-      <span class="maintenance-page__eyebrow">SYSTEM MAINTENANCE</span>
       <h1>系统维护中</h1>
       <p>{{ displayMessage }}</p>
-      <div class="maintenance-page__status"> <i></i><span>服务正在恢复，请稍后再试</span> </div>
     </div>
   </div>
 </template>

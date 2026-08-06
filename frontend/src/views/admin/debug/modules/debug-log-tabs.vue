@@ -12,14 +12,6 @@
 
     <ElTabs v-model="tabModel">
       <ElTabPane label="审计日志" name="audit">
-        <ArtSearchBar
-          v-model="auditSearchForm"
-          :items="searchItems"
-          :span="8"
-          :show-expand="false"
-          @search="emitSearch('audit', $event)"
-          @reset="emitReset('audit')"
-        />
         <ArtTableHeader
           v-model:columns="auditColumnChecks"
           :show-search-bar="false"
@@ -45,14 +37,6 @@
       </ElTabPane>
 
       <ElTabPane label="自动化日志" name="automation">
-        <ArtSearchBar
-          v-model="automationSearchForm"
-          :items="automationSearchItems"
-          :span="8"
-          :show-expand="false"
-          @search="emitSearch('automation', $event)"
-          @reset="emitReset('automation')"
-        />
         <ArtTableHeader
           v-model:columns="automationColumnChecks"
           :show-search-bar="false"
@@ -89,14 +73,6 @@
       </ElTabPane>
 
       <ElTabPane label="同步日志" name="sync">
-        <ArtSearchBar
-          v-model="syncSearchForm"
-          :items="searchItems"
-          :span="8"
-          :show-expand="false"
-          @search="emitSearch('sync', $event)"
-          @reset="emitReset('sync')"
-        />
         <ArtTableHeader
           v-model:columns="syncColumnChecks"
           :show-search-bar="false"
@@ -156,33 +132,11 @@
     (e: 'refresh'): void
     (e: 'page-size-change', type: LogTabKey, size: number): void
     (e: 'page-current-change', type: LogTabKey, page: number): void
-    (e: 'search', type: LogTabKey, keyword: string): void
-    (e: 'reset', type: LogTabKey): void
     (e: 'view-automation-detail', record: AutomationLogRecord): void
   }
 
   const props = withDefaults(defineProps<Props>(), { loading: false })
   const emit = defineEmits<Emits>()
-
-  const auditSearchForm = ref({ keyword: '' })
-  const automationSearchForm = ref({ keyword: '' })
-  const syncSearchForm = ref({ keyword: '' })
-  const searchItems = [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '搜索操作、目标或消息' }
-    }
-  ]
-  const automationSearchItems = [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '按 API 或动作筛选' }
-    }
-  ]
 
   const { columnChecks: auditColumnChecks, columns: auditColumns } =
     useTableColumns<AdminAuditLogRecord>(() => [
@@ -222,17 +176,6 @@
     get: () => props.activeTab,
     set: (value) => emit('update:activeTab', value)
   })
-
-  function emitSearch(type: LogTabKey, params: { keyword?: string }) {
-    emit('search', type, String(params.keyword || '').trim())
-  }
-
-  function emitReset(type: LogTabKey) {
-    if (type === 'audit') auditSearchForm.value = { keyword: '' }
-    if (type === 'automation') automationSearchForm.value = { keyword: '' }
-    if (type === 'sync') syncSearchForm.value = { keyword: '' }
-    emit('reset', type)
-  }
 
   function formatDateTime(value?: string) {
     if (!value) return '-'

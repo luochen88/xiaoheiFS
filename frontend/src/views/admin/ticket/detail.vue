@@ -20,10 +20,6 @@
             </div>
           </div>
         </div>
-
-        <div v-if="canDelete" class="header-actions">
-          <ElButton type="danger" plain @click="handleDelete">删除工单</ElButton>
-        </div>
       </div>
     </div>
 
@@ -37,7 +33,7 @@
             :key="message.id"
             :class="['message-item', message.sender_role === 'admin' ? 'is-admin' : 'is-user']"
           >
-            <ElAvatar :size="42" class="message-avatar">
+            <ElAvatar :size="42" class="message-avatar" :src="getMessageAvatar(message)">
               {{ message.sender_role === 'admin' ? 'A' : 'U' }}
             </ElAvatar>
 
@@ -45,7 +41,7 @@
               <div class="message-meta">
                 <div class="message-author">
                   <span class="author-name">
-                    {{ message.sender_role === 'admin' ? '管理员' : message.sender_name || '用户' }}
+                    {{ message.sender_role === 'admin' ? '我' : message.sender_name || '用户' }}
                   </span>
                   <span v-if="message.sender_qq" class="author-qq">QQ {{ message.sender_qq }}</span>
                 </div>
@@ -79,7 +75,7 @@
           <div class="reply-footer">
             <div class="status-box">
               <span class="status-label">更新状态</span>
-              <ElSelect v-model="newStatus" style="width: 180px">
+              <ElSelect v-model="newStatus" :disabled="!canUpdate" style="width: 180px">
                 <ElOption label="待处理" value="open" />
                 <ElOption label="等待回复" value="waiting_user" />
                 <ElOption label="已关闭" value="closed" />
@@ -166,21 +162,18 @@
   } from '@/services/admin'
   import {
     createAdminTicketMessage,
-    deleteAdminTicket,
     fetchAdminTicketDetail,
-    hasAdminPermission,
     updateAdminTicket
   } from '@/services/admin'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { INPUT_LIMITS } from '@/constants/inputLimits'
-  import { ElMessage, ElMessageBox } from 'element-plus'
+  import { ElMessage } from 'element-plus'
 
   defineOptions({ name: 'TicketDetail' })
 
   const route = useRoute()
   const router = useRouter()
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
+  const { hasAuth } = useAuth()
 
   const loading = ref(false)
   const replying = ref(false)
@@ -192,11 +185,8 @@
   const messages = computed<TicketMessageRecord[]>(() => detail.value?.messages || [])
   const resources = computed<TicketResourceRecord[]>(() => detail.value?.resources || [])
 
-  const canUpdate = computed(() => hasAdminPermission(info.value?.permissions, ['tickets.update']))
-  const canReply = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['tickets.messages', 'tickets.update'])
-  )
-  const canDelete = computed(() => hasAdminPermission(info.value?.permissions, ['tickets.delete']))
+  const canUpdate = computed(() => hasAuth('tickets.update'))
+  const canReply = computed(() => hasAuth('tickets.messages'))
   const hasOpenableResource = computed(() => resources.value.some((item) => canOpenResource(item)))
 
   onMounted(() => {
@@ -210,14 +200,15 @@
       const id = String(route.params.id || '')
       const payload = await fetchAdminTicketDetail(id)
       detail.value = payload
-      newStatus.value =
-        payload.ticket?.status === 'open'
+      newStatus.value = canUpdate.value
+        ? payload.ticket?.status === 'open'
           ? 'waiting_user'
           : payload.ticket?.status || 'waiting_user'
+        : payload.ticket?.status || 'waiting_user'
     } catch (error: any) {
       if (error?.code === 404 || error?.response?.status === 404) {
         ElMessage.error('工单不存在或已被删除')
-        router.push('/tickets/list')
+        router.push({ name: 'TicketList' })
       } else {
         ElMessage.error(error?.message || '加载工单失败')
       }
@@ -311,7 +302,7 @@
   }
 
   function goBack() {
-    router.push('/tickets/list')
+    router.push({ name: 'TicketList' })
   }
 
   async function reopenTicket() {
@@ -337,6 +328,10 @@
       return
     }
 
+    if (!canReply.value) {
+      return
+    }
+
     if (!replyContent.value.trim()) {
       ElMessage.error('请输入回复内容')
       return
@@ -352,7 +347,7 @@
     try {
       await createAdminTicketMessage(id, { content: replyContent.value })
 
-      if (newStatus.value !== ticket.value?.status) {
+      if (canUpdate.value && newStatus.value !== ticket.value?.status) {
         await updateAdminTicket(id, { status: newStatus.value })
       }
 
@@ -364,34 +359,14 @@
     }
   }
 
-  async function handleDelete() {
-    const id = String(route.params.id || '')
-    if (!id) {
-      return
-    }
-
-    try {
-      await ElMessageBox.confirm('删除后无法恢复，确认继续吗？', '删除工单', {
-        confirmButtonText: '删除',
-        cancelButtonText: '取消',
-        type: 'warning'
-      })
-    } catch {
-      return
-    }
-
-    await deleteAdminTicket(id)
-    ElMessage.success('工单已删除')
-    router.push('/tickets/list')
-  }
-
   function canOpenResource(item: TicketResourceRecord) {
     if (item.resource_type !== 'vps' || !item.resource_id) {
       return false
     }
 
     return (
-      router.resolve({ path: '/vps', query: { id: String(item.resource_id) } }).matched.length > 0
+      router.resolve({ name: 'VpsPage', query: { id: String(item.resource_id) } }).matched.length >
+      0
     )
   }
 
@@ -400,7 +375,20 @@
       return
     }
 
-    router.push({ path: '/vps', query: { id: String(item.resource_id) } })
+    router.push({ name: 'VpsPage', query: { id: String(item.resource_id) } })
+  }
+
+  function getMessageAvatar(message: TicketMessageRecord) {
+    if (message.sender_role === 'admin') {
+      return message.sender_avatar || ''
+    }
+
+    if (message.sender_avatar) {
+      return message.sender_avatar
+    }
+
+    const qq = String(message.sender_qq || '').trim()
+    return qq ? `https://q1.qlogo.cn/g?b=qq&nk=${qq}&s=100` : ''
   }
 </script>
 

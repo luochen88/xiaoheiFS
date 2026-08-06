@@ -22,6 +22,7 @@
           <ElButton :loading="settingsLoading" @click="loadSettings">刷新设置</ElButton>
           <ElButton
             type="primary"
+            v-auth="'settings.update'"
             :loading="settingsSaving"
             :disabled="!canUpdateSettings"
             @click="saveSettings"
@@ -64,6 +65,10 @@
       class="art-table-card"
       :style="{ marginTop: canViewSettings || showSearchBar ? '12px' : '0' }"
     >
+      <div class="refresh-status">
+        <span>上次刷新：{{ formatDateTime(lastRefreshAt) }}</span>
+        <span v-if="refreshError">，刷新失败：{{ refreshError }}</span>
+      </div>
       <ArtTableHeader
         v-model:columns="columnChecks"
         v-model:showSearchBar="showSearchBar"
@@ -72,10 +77,9 @@
       >
         <template #left>
           <ElSpace wrap>
-            <ElButton v-if="canCreate" type="primary" v-ripple @click="openCreate">
+            <ElButton v-auth="'probe.create'" type="primary" v-ripple @click="openCreate">
               创建探针
             </ElButton>
-            <ElButton v-ripple @click="exportCsv">导出 CSV</ElButton>
           </ElSpace>
         </template>
       </ArtTableHeader>
@@ -143,8 +147,8 @@
 
         <template #operation="{ row }">
           <div class="table-actions">
-            <ArtButtonTable v-if="canView" type="view" @click="openDetail(row)" />
-            <ArtButtonTable v-if="canUpdate" type="edit" @click="openEdit(row)" />
+            <ArtButtonTable v-auth="'probe.view'" type="view" @click="openDetail(row)" />
+            <ArtButtonTable v-auth="'probe.update'" type="edit" @click="openEdit(row)" />
 
             <ArtButtonMore
               :list="getMoreActions()"
@@ -209,31 +213,13 @@
   } from '@/services/admin'
   import ArtButtonMore from '@/components/core/forms/art-button-more/index.vue'
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { useTable } from '@/hooks/core/useTable'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import ProbeDialog from './modules/probe-dialog.vue'
   import ProbeSearch from './modules/probe-search.vue'
 
   defineOptions({ name: 'ProbeList' })
-
-  function hasAdminPermission(
-    grantedPermissions: string[] | undefined,
-    requiredPermissions: string | string[]
-  ) {
-    const granted = Array.isArray(grantedPermissions) ? grantedPermissions : []
-    const required = Array.isArray(requiredPermissions)
-      ? requiredPermissions
-      : [requiredPermissions]
-    return required.some((permission) =>
-      granted.some(
-        (grantedPermission) =>
-          grantedPermission === '*' ||
-          grantedPermission === permission ||
-          (grantedPermission.endsWith('*') && permission.startsWith(grantedPermission.slice(0, -1)))
-      )
-    )
-  }
 
   const fetchAdminProbes = async (params: Record<string, unknown> = {}) =>
     (await listAdminProbes(params)).data
@@ -254,6 +240,14 @@
   interface ProbeTableParams extends Api.Common.CommonSearchParams, ProbeSearchForm {}
 
   interface ProbeRecordLike extends ProbeRecord {
+    cpu_usage_percent?: unknown
+    mem_usage_percent?: unknown
+    CPUUsagePercent?: unknown
+    MemUsagePercent?: unknown
+    cpuUsagePercent?: unknown
+    memUsagePercent?: unknown
+    CpuUsagePercent?: unknown
+    MEMUsagePercent?: unknown
     ID?: unknown
     Name?: unknown
     AgentID?: unknown
@@ -285,16 +279,15 @@
     last_heartbeat_at: string | null
     last_snapshot_at: string | null
     snapshot: ProbeSnapshotRecord | null
+    cpu_usage_percent: number | null
+    mem_usage_percent: number | null
     created_at: string
     updated_at: string
   }
 
   const route = useRoute()
   const router = useRouter()
-  const adminAuth = useAdminAuthStore()
-  const info = computed(() => ({
-    buttons: (adminAuth.profile as { permissions?: string[] } | null)?.permissions || []
-  }))
+  const { hasAuth } = useAuth()
 
   const showSearchBar = ref(true)
   const dialogVisible = ref(false)
@@ -304,6 +297,8 @@
   const currentToken = ref('')
   const settingsLoading = ref(false)
   const settingsSaving = ref(false)
+  const lastRefreshAt = ref('')
+  const refreshError = ref('')
 
   const searchForm = ref<ProbeSearchForm>(createDefaultSearchForm())
   const dialogForm = ref<ProbeDialogFormValue>(createDefaultDialogForm())
@@ -314,16 +309,8 @@
     offline_grace_sec: 90
   })
 
-  const canView = computed(() =>
-    hasAdminPermission(info.value?.buttons, ['probe.list', 'probe.view'])
-  )
-  const canCreate = computed(() => hasAdminPermission(info.value?.buttons, ['probe.create']))
-  const canUpdate = computed(() => hasAdminPermission(info.value?.buttons, ['probe.update']))
-  const canDelete = computed(() => hasAdminPermission(info.value?.buttons, ['probe.delete']))
-  const canViewSettings = computed(() => hasAdminPermission(info.value?.buttons, ['settings.view']))
-  const canUpdateSettings = computed(() =>
-    hasAdminPermission(info.value?.buttons, ['settings.update'])
-  )
+  const canViewSettings = computed(() => hasAuth('settings.view'))
+  const canUpdateSettings = computed(() => hasAuth('settings.update'))
 
   const {
     columns,
@@ -426,6 +413,12 @@
   }
 
   function normalizeProbe(row?: ProbeRecordLike | null): ProbeTableRow {
+    const cpuUsage = normalizeNullableNumber(
+      row?.cpu_usage_percent ?? row?.CPUUsagePercent ?? row?.cpuUsagePercent ?? row?.CpuUsagePercent
+    )
+    const memoryUsage = normalizeNullableNumber(
+      row?.mem_usage_percent ?? row?.MemUsagePercent ?? row?.memUsagePercent ?? row?.MEMUsagePercent
+    )
     return {
       id: normalizeNullableNumber(row?.id ?? row?.ID),
       name: String(row?.name ?? row?.Name ?? ''),
@@ -438,6 +431,8 @@
       last_heartbeat_at: normalizeNullableString(row?.last_heartbeat_at ?? row?.LastHeartbeatAt),
       last_snapshot_at: normalizeNullableString(row?.last_snapshot_at ?? row?.LastSnapshotAt),
       snapshot: row?.snapshot ?? row?.Snapshot ?? null,
+      cpu_usage_percent: cpuUsage,
+      mem_usage_percent: memoryUsage,
       created_at: String(row?.created_at ?? row?.CreatedAt ?? ''),
       updated_at: String(row?.updated_at ?? row?.UpdatedAt ?? '')
     }
@@ -462,7 +457,9 @@
 
   function getUsagePercent(row: ProbeTableRow, type: 'cpu' | 'memory') {
     const source =
-      type === 'cpu' ? row.snapshot?.cpu?.usage_percent : row.snapshot?.memory?.usage_percent
+      type === 'cpu'
+        ? (row.snapshot?.cpu?.usage_percent ?? row.cpu_usage_percent)
+        : (row.snapshot?.memory?.usage_percent ?? row.mem_usage_percent)
     const value = Number(source)
 
     if (!Number.isFinite(value)) {
@@ -558,19 +555,26 @@
   async function fetchProbeTable(
     params: ProbeTableParams
   ): Promise<Api.Common.PaginatedResponse<ProbeTableRow>> {
-    const payload = await fetchAdminProbes({
-      limit: params.size,
-      offset: (params.current - 1) * params.size,
-      keyword: params.keyword.trim() || undefined,
-      status: params.status || undefined
-    })
-    const records = (payload.items || []).map((item) => normalizeProbe(item))
-    await loadSla(records)
-    return {
-      records,
-      current: params.current,
-      size: params.size,
-      total: payload.total ?? records.length
+    try {
+      const payload = await fetchAdminProbes({
+        limit: params.size,
+        offset: (params.current - 1) * params.size,
+        keyword: params.keyword.trim() || undefined,
+        status: params.status || undefined
+      })
+      const records = (payload.items || []).map((item) => normalizeProbe(item))
+      await loadSla(records)
+      lastRefreshAt.value = new Date().toISOString()
+      refreshError.value = ''
+      return {
+        records,
+        current: params.current,
+        size: params.size,
+        total: payload.total ?? records.length
+      }
+    } catch (error: any) {
+      refreshError.value = String(error?.message || '请求失败')
+      throw error
     }
   }
 
@@ -718,16 +722,6 @@
       return
     }
 
-    try {
-      await ElMessageBox.confirm('确认重置该探针的注册令牌吗？', '重置注册令牌', {
-        confirmButtonText: '重置',
-        cancelButtonText: '取消',
-        type: 'warning'
-      })
-    } catch {
-      return
-    }
-
     const payload = await resetProbeEnrollToken(row.id)
     currentToken.value = String(payload.enroll_token || '')
     tokenVisible.value = Boolean(currentToken.value)
@@ -760,16 +754,14 @@
         key: 'reset-token',
         label: '重置注册令牌',
         icon: 'ri:key-2-line',
-        auth: 'probe.update',
-        disabled: !canUpdate.value
+        auth: 'probe.update'
       },
       {
         key: 'delete',
         label: '删除探针',
         icon: 'ri:delete-bin-line',
         color: 'var(--el-color-danger)',
-        auth: 'probe.delete',
-        disabled: !canDelete.value
+        auth: 'probe.delete'
       }
     ]
   }
@@ -792,34 +784,6 @@
 
     await navigator.clipboard.writeText(currentToken.value)
     ElMessage.success('令牌已复制')
-  }
-
-  function escapeCsvCell(value: string | number | null | undefined) {
-    const text = String(value ?? '')
-    return `"${text.replace(/"/g, '""')}"`
-  }
-
-  function exportCsv() {
-    const rows = tableData.value.map((item) =>
-      [
-        escapeCsvCell(item.id),
-        escapeCsvCell(item.name),
-        escapeCsvCell(item.agent_id),
-        escapeCsvCell(item.status),
-        escapeCsvCell(item.last_heartbeat_at)
-      ].join(',')
-    )
-
-    const content = ['id,name,agent_id,status,last_heartbeat_at', ...rows].join('\n')
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-
-    link.href = url
-    link.download = 'admin-probes.csv'
-    link.click()
-
-    URL.revokeObjectURL(url)
   }
 </script>
 
@@ -849,6 +813,12 @@
 
   .settings-item {
     margin-bottom: 0;
+  }
+
+  .refresh-status {
+    padding: 12px 16px 0;
+    font-size: 13px;
+    color: var(--el-text-color-secondary);
   }
 
   .usage-cell {

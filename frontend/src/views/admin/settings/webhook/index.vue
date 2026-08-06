@@ -1,21 +1,15 @@
 <template>
   <div class="webhook-page art-full-height">
-    <ArtSearchBar
-      v-show="showSearchBar"
-      v-model="searchForm"
-      :items="searchItems"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="resetSearchParams"
-    />
-
-    <ElCard class="art-table-card" :style="{ marginTop: showSearchBar ? '12px' : '0' }">
-      <ArtTableHeader
-        v-model:columns="columnChecks"
-        v-model:show-search-bar="showSearchBar"
-        :loading="loading"
-        @refresh="reload"
-      >
+    <ElCard class="art-table-card">
+      <ElAlert
+        class="webhook-help"
+        type="info"
+        :closable="false"
+        show-icon
+        title="事件说明"
+        description="events 为空代表全事件。你可以留空或填写特定事件。"
+      />
+      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="reload">
         <template #left>
           <ElSpace wrap>
             <ElButton v-if="canUpdate" type="primary" @click="addWebhook">
@@ -34,15 +28,7 @@
         </template>
       </ArtTableHeader>
 
-      <ArtTable
-        row-key="key"
-        :loading="loading"
-        :data="data"
-        :columns="columns"
-        :pagination="pagination"
-        @pagination:size-change="handleSizeChange"
-        @pagination:current-change="handleCurrentChange"
-      >
+      <ArtTable row-key="key" :loading="loading" :data="data" :columns="columns">
         <template #name="{ row }">
           <ElInput v-model="row.name" :disabled="!canUpdate" placeholder="Webhook 名称" />
         </template>
@@ -100,16 +86,6 @@
 
   defineOptions({ name: 'AdminSettingsWebhook' })
 
-  interface SearchForm {
-    keyword?: string
-    enabled?: boolean
-  }
-
-  interface TableParams extends SearchForm {
-    current: number
-    size: number
-  }
-
   interface WebhookRow {
     key: string
     name: string
@@ -119,13 +95,11 @@
     events: string[]
   }
 
-  const showSearchBar = ref(true)
-  const searchForm = ref<SearchForm>({ keyword: '', enabled: undefined })
   const saving = ref(false)
   const rows = ref<WebhookRow[]>([])
   const loaded = ref(false)
   const { hasPermission } = useAdminPermissions()
-  const canUpdate = hasPermission('settings.update', 'robot.update')
+  const canUpdate = hasPermission('robot.update')
 
   const eventOptions = [
     { label: '订单：待支付', value: 'order.pending_payment' },
@@ -142,63 +116,18 @@
     { label: '支付：已通过', value: 'payment.approved' },
     { label: '测试', value: 'webhook.test' }
   ]
-  const searchItems = computed(() => [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '名称或 URL' }
-    },
-    {
-      key: 'enabled',
-      label: '状态',
-      type: 'select',
-      props: {
-        clearable: true,
-        options: [
-          { label: '启用', value: true },
-          { label: '停用', value: false }
-        ]
-      }
-    }
-  ])
-
-  const fetchWebhookRows = async (params: TableParams) => {
+  const fetchWebhookRows = async () => {
     if (!loaded.value) {
       const response = await getRobotConfig()
       rows.value = (response.data?.webhooks ?? []).map(normalizeRow)
       loaded.value = true
     }
-    const keyword = String(params.keyword ?? '')
-      .trim()
-      .toLowerCase()
-    let filtered = rows.value
-    if (keyword) {
-      filtered = filtered.filter((row) => `${row.name} ${row.url}`.toLowerCase().includes(keyword))
-    }
-    if (typeof params.enabled === 'boolean') {
-      filtered = filtered.filter((row) => row.enabled === params.enabled)
-    }
-    const start = (params.current - 1) * params.size
-    return { records: filtered.slice(start, start + params.size), total: filtered.length }
+    return { records: rows.value, total: rows.value.length }
   }
 
-  const {
-    columns,
-    columnChecks,
-    data,
-    loading,
-    pagination,
-    getData,
-    searchParams,
-    resetSearchParams,
-    handleSizeChange,
-    handleCurrentChange,
-    refreshData
-  } = useTable({
+  const { columns, columnChecks, data, loading, getData, refreshData } = useTable({
     core: {
       apiFn: fetchWebhookRows,
-      apiParams: { current: 1, size: 20, ...searchForm.value },
       columnsFactory: () => [
         { prop: 'name', label: '名称', minWidth: 160, useSlot: true },
         { prop: 'url', label: 'Webhook URL', minWidth: 260, useSlot: true },
@@ -225,11 +154,6 @@
     }
   }
 
-  function handleSearch(params: SearchForm): void {
-    Object.assign(searchParams, params)
-    getData()
-  }
-
   function addWebhook(): void {
     rows.value.push({
       key: createKey(),
@@ -253,11 +177,6 @@
   }
 
   async function save(): Promise<void> {
-    const invalid = rows.value.findIndex((row) => !row.url.trim())
-    if (invalid >= 0) {
-      ElMessage.error(`Webhook ${invalid + 1} 的 URL 不能为空`)
-      return
-    }
     saving.value = true
     try {
       await updateRobotConfig({
@@ -287,5 +206,9 @@
 <style lang="scss" scoped>
   .webhook-page {
     min-width: 0;
+  }
+
+  .webhook-help {
+    margin: 12px 12px 0;
   }
 </style>

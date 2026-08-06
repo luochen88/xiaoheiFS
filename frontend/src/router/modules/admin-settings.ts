@@ -22,7 +22,15 @@ export const adminSettingsRoutes: AppRouteRecord[] = [
         { title: '查看系统配置', authMark: 'settings.view' },
         { title: '查看 API Key', authMark: 'api_key.list' },
         { title: '查看插件', authMark: 'plugin.list' },
-        { title: '查看支付设置', authMark: 'payment.list' }
+        { title: '查看支付设置', authMark: 'payment.list' },
+        { title: '查看 SMTP 配置', authMark: 'smtp.view' },
+        { title: '更新 SMTP 配置', authMark: 'smtp.update' },
+        { title: '测试 SMTP', authMark: 'smtp.test' },
+        { title: '查看邮件模板', authMark: 'email_template.list' },
+        { title: '查看短信配置', authMark: 'sms.view' },
+        { title: '更新短信配置', authMark: 'sms.update' },
+        { title: '测试短信', authMark: 'sms.test' },
+        { title: '查看短信模板', authMark: 'sms_template.list' }
       ]
     },
     children: [
@@ -83,8 +91,12 @@ export const adminSettingsRoutes: AppRouteRecord[] = [
           authList: [
             { title: '查看设置', authMark: 'settings.view' },
             { title: '更新设置', authMark: 'settings.update' },
+            { title: '查看 SMTP 配置', authMark: 'smtp.view' },
+            { title: '更新 SMTP 配置', authMark: 'smtp.update' },
+            { title: '测试 SMTP', authMark: 'smtp.test' },
             { title: '查看邮件模板', authMark: 'email_template.list' },
-            { title: '更新邮件模板', authMark: 'email_template.update' }
+            { title: '更新邮件模板', authMark: 'email_template.update' },
+            { title: '删除邮件模板', authMark: 'email_template.delete' }
           ]
         }
       },
@@ -100,8 +112,12 @@ export const adminSettingsRoutes: AppRouteRecord[] = [
           authList: [
             { title: '查看设置', authMark: 'settings.view' },
             { title: '更新设置', authMark: 'settings.update' },
+            { title: '查看短信配置', authMark: 'sms.view' },
+            { title: '更新短信配置', authMark: 'sms.update' },
+            { title: '测试短信', authMark: 'sms.test' },
             { title: '查看短信模板', authMark: 'sms_template.list' },
-            { title: '更新短信模板', authMark: 'sms_template.update' }
+            { title: '更新短信模板', authMark: 'sms_template.update' },
+            { title: '删除短信模板', authMark: 'sms_template.delete' }
           ]
         }
       },

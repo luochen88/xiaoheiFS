@@ -33,6 +33,7 @@
   import HomeFeaturesBlock from '@/components/business/cms-blocks/home/HomeFeaturesBlock.vue'
   import HomeHeroBlock from '@/components/business/cms-blocks/home/HomeHeroBlock.vue'
   import HomeProductsBlock from '@/components/business/cms-blocks/home/HomeProductsBlock.vue'
+  import { getCmsBlocks } from '@/services/user'
   import { useSiteStore } from '@/stores/site'
 
   defineOptions({ name: 'PublicHome' })
@@ -162,13 +163,47 @@
     cta: { sort_order: 4, visible: true, content: { features: ctaFeatures.value } }
   }
 
+  const featureIconMap: Record<string, string> = {
+    thunder: 'ri:flashlight-line',
+    shield: 'ri:shield-check-line',
+    globe: 'ri:global-line',
+    server: 'ri:server-line',
+    database: 'ri:database-2-line',
+    settings: 'ri:settings-3-line'
+  }
+  const productIconMap: Record<string, string> = {
+    cloud: 'ri:cloud-line',
+    cube: 'ri:box-3-line',
+    code: 'ri:code-box-line'
+  }
+  const resolveCmsIcon = (
+    value: unknown,
+    map: Record<string, string>,
+    fallback: string[],
+    index: number
+  ) => {
+    const icon = String(value || '')
+    return icon.includes(':') ? icon : map[icon] || fallback[index % fallback.length]
+  }
+
   const applyBlocks = (blocks: CmsBlock[]) => {
     const merged: Record<string, any> = {}
     Object.entries(defaultBlocks).forEach(([type, block]) => {
       merged[type] = { ...block, content: { ...block.content } }
     })
 
+    let legacyStats: unknown[] = []
     blocks.forEach((block) => {
+      if (block?.type === 'stats') {
+        const content = parseContent(block)
+        const items = Array.isArray(content.items)
+          ? content.items
+          : Array.isArray(content.stats)
+            ? content.stats
+            : []
+        if (items.length) legacyStats = items
+        return
+      }
       if (!block?.type || !merged[block.type]) return
       const content = parseContent(block)
       merged[block.type] = {
@@ -178,6 +213,14 @@
         content: { ...merged[block.type].content, ...content }
       }
     })
+
+    if (
+      legacyStats.length &&
+      (!Array.isArray(merged.hero.content.stats) || merged.hero.content.stats.length === 0)
+    ) {
+      merged.hero.content.stats = legacyStats
+      merged.hero.visible = true
+    }
 
     homeBlockOrder.value = Object.entries(merged)
       .filter(([, block]) => block.visible !== false)
@@ -197,9 +240,10 @@
     if (Array.isArray(hero.typewriter_words) && hero.typewriter_words.length)
       typewriterWords.value = hero.typewriter_words
     if (Array.isArray(hero.cards) && hero.cards.length) heroCards.value = hero.cards
-    if (Array.isArray(hero.stats) && hero.stats.length) {
-      stats.value = hero.stats
-      animatedStats.value = hero.stats.map(() => '0')
+    const resolvedStats = hero.stats
+    if (Array.isArray(resolvedStats) && resolvedStats.length) {
+      stats.value = resolvedStats as Stat[]
+      animatedStats.value = resolvedStats.map(() => '0')
     }
 
     Object.assign(featuresContent, {
@@ -208,8 +252,13 @@
       desc: merged.features.content.desc || ''
     })
     if (Array.isArray(merged.features.content.items) && merged.features.content.items.length)
-      features.value = merged.features.content.items.map((item: any) => ({
-        icon: item.icon || 'ri:flashlight-line',
+      features.value = merged.features.content.items.map((item: any, index: number) => ({
+        icon: resolveCmsIcon(
+          item.icon,
+          featureIconMap,
+          defaultBlocks.features.content.items.map((entry: any) => entry.icon),
+          index
+        ),
         title: item.title || '',
         description: item.description || ''
       }))
@@ -219,8 +268,13 @@
       title: merged.products.content.title || ''
     })
     if (Array.isArray(merged.products.content.items) && merged.products.content.items.length)
-      products.value = merged.products.content.items.map((item: any) => ({
-        icon: item.icon || 'ri:cloud-line',
+      products.value = merged.products.content.items.map((item: any, index: number) => ({
+        icon: resolveCmsIcon(
+          item.icon,
+          productIconMap,
+          defaultBlocks.products.content.items.map((entry: any) => entry.icon),
+          index
+        ),
         tag: item.tag || '',
         title: item.title || '',
         description: item.description || '',
@@ -289,7 +343,12 @@
   const resetFeatureGlow = () => undefined
 
   onMounted(async () => {
-    await siteStore.fetchBlocks('home')
+    try {
+      const response = await getCmsBlocks({ page: 'home', lang: 'zh-CN' })
+      siteStore.blocks.home = response.data?.items || []
+    } catch {
+      siteStore.blocks.home = []
+    }
     applyBlocks((siteStore.blocks.home || []) as CmsBlock[])
     type()
     animateStats()

@@ -12,7 +12,12 @@
               <ArtSvgIcon icon="ri:refresh-line" />
               刷新配置
             </ElButton>
-            <ElButton v-if="canUpdate" type="primary" :loading="configSaving" @click="saveConfig">
+            <ElButton
+              v-if="canUpdateSettings || canUpdateSmtp"
+              type="primary"
+              :loading="configSaving"
+              @click="saveConfig"
+            >
               <ArtSvgIcon icon="ri:save-line" />
               保存配置
             </ElButton>
@@ -23,7 +28,7 @@
       <ArtForm
         v-model="configForm"
         :items="configItems"
-        :disabled="configLoading || configSaving || !canUpdate"
+        :disabled="configLoading || configSaving"
         :show-reset="false"
         :show-submit="false"
         :span="12"
@@ -33,48 +38,29 @@
         <template #smtp_test>
           <div class="inline-action">
             <ElInput v-model="smtpTestTo" placeholder="接收人邮箱" />
-            <ElButton type="primary" :disabled="!canUpdate" @click="sendSmtpTest">
+            <ElButton type="primary" :disabled="!canTestSmtp" @click="sendSmtpTest">
               <ArtSvgIcon icon="ri:send-plane-line" />
               测试发送
             </ElButton>
+          </div>
+          <div class="field-help">
+            未启用模板时将发送默认文案；如有启用模板，将优先发送列表中的第一个启用模板。
           </div>
         </template>
       </ArtForm>
     </ElCard>
 
-    <ArtSearchBar
-      v-show="showSearchBar"
-      v-model="searchForm"
-      :items="searchItems"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="resetSearchParams"
-    />
-
-    <ElCard class="templates-card">
-      <ArtTableHeader
-        v-model:columns="columnChecks"
-        v-model:show-search-bar="showSearchBar"
-        :loading="loading"
-        @refresh="refreshData"
-      >
+    <ElCard v-if="canViewTemplates" class="templates-card">
+      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
         <template #left>
-          <ElButton v-if="canUpdate" type="primary" @click="openTemplate()">
+          <ElButton v-if="canUpdateTemplates" type="primary" @click="openTemplate()">
             <ArtSvgIcon icon="ri:add-line" />
             新增模板
           </ElButton>
         </template>
       </ArtTableHeader>
 
-      <ArtTable
-        row-key="id"
-        :loading="loading"
-        :data="data"
-        :columns="columns"
-        :pagination="pagination"
-        @pagination:size-change="handleSizeChange"
-        @pagination:current-change="handleCurrentChange"
-      >
+      <ArtTable row-key="id" :loading="loading" :data="data" :columns="columns">
         <template #enabled="{ row }">
           <ElTag :type="row.enabled ? 'success' : 'info'">
             {{ row.enabled ? '启用' : '停用' }}
@@ -82,8 +68,10 @@
         </template>
         <template #operation="{ row }">
           <ElSpace>
-            <ElButton link type="primary" @click="openTemplate(row)">编辑</ElButton>
-            <ElButton v-if="canUpdate" link type="danger" @click="removeTemplate(row)">
+            <ElButton v-if="canUpdateTemplates" link type="primary" @click="openTemplate(row)">
+              编辑
+            </ElButton>
+            <ElButton v-if="canDeleteTemplates" link type="danger" @click="removeTemplate(row)">
               删除
             </ElButton>
           </ElSpace>
@@ -118,10 +106,9 @@
       </div>
 
       <ArtForm
-        ref="templateFormRef"
         v-model="templateForm"
         :items="templateItems"
-        :rules="templateRules"
+        :disabled="!canUpdateTemplates"
         :show-reset="false"
         :show-submit="false"
         :span="12"
@@ -133,14 +120,36 @@
         <template #template_test>
           <div class="inline-action">
             <ElInput v-model="templateTestTo" placeholder="test@example.com" />
-            <ElButton type="primary" @click="sendTemplateTest">发送测试</ElButton>
+            <ElButton type="primary" :disabled="!canTestSmtp" @click="sendTemplateTest">
+              发送测试
+            </ElButton>
           </div>
         </template>
       </ArtForm>
 
+      <ElCollapse class="template-details">
+        <ElCollapseItem title="模板变量与 Mock 数据" name="variables">
+          <div class="template-vars">
+            <div v-for="item in templateVariables" :key="item.code">
+              <code>{{ item.code }}</code
+              >：{{ item.value }}
+            </div>
+          </div>
+          <div class="field-help">渲染数据：</div>
+          <pre class="mock-data">{{ mockDataJson }}</pre>
+        </ElCollapseItem>
+      </ElCollapse>
+
       <template #footer>
         <ElButton @click="templateVisible = false">取消</ElButton>
-        <ElButton type="primary" :loading="templateSaving" @click="saveTemplate">保存模板</ElButton>
+        <ElButton
+          v-if="canUpdateTemplates"
+          type="primary"
+          :loading="templateSaving"
+          @click="saveTemplate"
+        >
+          保存模板
+        </ElButton>
       </template>
     </ElDialog>
 
@@ -151,13 +160,15 @@
           <div v-if="previewIsHtml" class="preview-body" v-html="previewBody" />
           <pre v-else class="preview-text">{{ previewBody }}</pre>
         </ElDescriptionsItem>
+        <ElDescriptionsItem label="Mock 数据">
+          <pre class="mock-data">{{ mockDataJson }}</pre>
+        </ElDescriptionsItem>
       </ElDescriptions>
     </ElDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-  import type { FormRules } from 'element-plus'
   import EmailTemplateEditor from '@/components/business/email-template-editor/index.vue'
   import {
     deleteEmailTemplate,
@@ -182,16 +193,6 @@
 
   defineOptions({ name: 'AdminSettingsEmail' })
 
-  interface SearchForm {
-    keyword?: string
-    enabled?: boolean
-  }
-
-  interface TableParams extends SearchForm {
-    current: number
-    size: number
-  }
-
   interface EmailTemplateRow {
     id: number | null
     name: string
@@ -208,10 +209,6 @@
     enabled: boolean
   }
 
-  interface ArtFormExpose {
-    validate: () => Promise<boolean> | undefined
-  }
-
   const configForm = reactive({
     smtp_host: '',
     smtp_port: '',
@@ -226,11 +223,8 @@
   const configLoading = ref(false)
   const configSaving = ref(false)
   const smtpTestTo = ref('')
-  const showSearchBar = ref(true)
-  const searchForm = ref<SearchForm>({ keyword: '', enabled: undefined })
   const templateVisible = ref(false)
   const templateSaving = ref(false)
-  const templateFormRef = ref<ArtFormExpose>()
   const templateForm = reactive<TemplateForm>(createTemplateForm())
   const defaultTemplateKey = ref<string>()
   const templateTestTo = ref('')
@@ -239,111 +233,213 @@
   const previewBody = ref('')
   const previewIsHtml = ref(false)
   const { hasPermission } = useAdminPermissions()
-  const canUpdate = hasPermission('settings.update', 'smtp.update', 'email_template.update')
+  const canViewSettings = hasPermission('settings.view')
+  const canUpdateSettings = hasPermission('settings.update')
+  const canViewSmtp = hasPermission('smtp.view')
+  const canUpdateSmtp = hasPermission('smtp.update')
+  const canTestSmtp = hasPermission('smtp.test')
+  const canViewTemplates = hasPermission('email_template.list')
+  const canUpdateTemplates = hasPermission('email_template.update')
+  const canDeleteTemplates = hasPermission('email_template.delete')
 
   const mockData = {
     user: { id: 1001, username: 'demo_user', email: 'demo@example.com', qq: '123456' },
-    order: { no: 'ORD-20240501-0001' },
-    vps: { name: 'vps-001', expire_at: '2026-12-31' },
+    order: { no: 'ORD-20240501-0001', amount: '299.00' },
+    vps: { name: 'vps-001', ip: '192.0.2.10', expire_at: '2024-12-31' },
     message: 'This is a mock message.',
     now: ''
   }
+  const mockDataJson = computed(() => JSON.stringify(mockData, null, 2))
+  const templateVariables = computed(() => [
+    { code: '{{ .user.id }}', value: mockData.user.id },
+    { code: '{{ .user.username }}', value: mockData.user.username },
+    { code: '{{ .user.email }}', value: mockData.user.email },
+    { code: '{{ .user.qq }}', value: mockData.user.qq },
+    { code: '{{ .order.no }}', value: mockData.order.no },
+    { code: '{{ .order.amount }}', value: mockData.order.amount },
+    { code: '{{ .vps.name }}', value: mockData.vps.name },
+    { code: '{{ .vps.ip }}', value: mockData.vps.ip },
+    { code: '{{ .vps.expire_at }}', value: mockData.vps.expire_at },
+    { code: '{{ .message }}', value: mockData.message },
+    { code: '{{ .now }}', value: mockData.now }
+  ])
 
   const defaultTemplates = [
     {
       key: 'provision_success',
       label: '开通成功 (provision_success)',
       subject: 'VPS Provisioned: Order {{.order.no}}',
-      body: '<h2>Hi {{.user.username}}</h2><p>Your VPS for order <strong>{{.order.no}}</strong> is now active.</p>'
+      body: `<!DOCTYPE html>
+<html>
+<body style="margin:0; padding:24px; background:#f4f6fb; font-family: Arial, sans-serif; color:#1f2329;">
+  <div style="max-width:640px; margin:0 auto;">
+    <div style="font-size:12px; color:#6b7280;">Provision Notice</div>
+    <div style="font-size:20px; font-weight:700;">VPS Provisioned</div>
+    <div style="height:12px;"></div>
+    <div style="background:#ffffff; border-radius:12px; box-shadow:0 8px 20px rgba(15,23,42,0.08); padding:24px;">
+      <div style="display:inline-block; padding:6px 10px; background:#eef2ff; color:#4338ca; border-radius:999px; font-size:12px; font-weight:600;">Active</div>
+      <h2 style="margin:12px 0 8px; font-size:18px;">Hi {{.user.username}},</h2>
+      <p style="margin:0 0 12px;">Your VPS for order <strong>{{.order.no}}</strong> is now active.</p>
+      <div style="background:#f8fafc; border-radius:10px; padding:12px;">
+        <div style="font-size:12px; color:#6b7280;">Next step</div>
+        <div style="font-size:14px; font-weight:600; padding-top:4px;">Log in to the console to manage your instance.</div>
+      </div>
+      <p style="margin:16px 0 0; font-size:13px; color:#6b7280;">If you have any questions, reply to this email.</p>
+    </div>
+    <div style="padding-top:12px; font-size:12px; color:#94a3b8;">This is an automated message.</div>
+  </div>
+</body>
+</html>`
     },
     {
       key: 'expire_reminder',
       label: '到期提醒 (expire_reminder)',
       subject: 'VPS Expiration Reminder: {{.vps.name}}',
-      body: '<h2>Hi {{.user.username}}</h2><p>Your VPS <strong>{{.vps.name}}</strong> will expire on {{.vps.expire_at}}.</p>'
+      body: `<!DOCTYPE html>
+<html>
+<body style="margin:0; padding:24px; background:#fff7ed; font-family: Arial, sans-serif; color:#1f2329;">
+  <div style="max-width:640px; margin:0 auto;">
+    <div style="font-size:12px; color:#9a3412;">Reminder</div>
+    <div style="font-size:20px; font-weight:700;">VPS Expiration Alert</div>
+    <div style="height:12px;"></div>
+    <div style="background:#ffffff; border-radius:12px; box-shadow:0 8px 20px rgba(180,83,9,0.08); padding:24px;">
+      <div style="display:inline-block; padding:6px 10px; background:#ffedd5; color:#9a3412; border-radius:999px; font-size:12px; font-weight:600;">Action Required</div>
+      <h2 style="margin:12px 0 8px; font-size:18px;">Hi {{.user.username}},</h2>
+      <p style="margin:0 0 12px;">Your VPS <strong>{{.vps.name}}</strong> will expire on <strong>{{.vps.expire_at}}</strong>.</p>
+      <div style="background:#fff7ed; border-radius:10px; padding:12px;">
+        <div style="font-size:12px; color:#9a3412;">Recommendation</div>
+        <div style="font-size:14px; font-weight:600; padding-top:4px;">Renew early to avoid service interruption.</div>
+      </div>
+      <p style="margin:16px 0 0; font-size:13px; color:#9a3412;">If you have questions, contact support.</p>
+    </div>
+    <div style="padding-top:12px; font-size:12px; color:#c2410c;">This is an automated message.</div>
+  </div>
+</body>
+</html>`
     },
     {
       key: 'order_approved',
       label: '订单通过 (order_approved)',
       subject: 'Order Approved: {{.order.no}}',
-      body: '<h2>Order Approved</h2><p>Hi {{.user.username}}, order {{.order.no}} has been approved.</p><p>{{.message}}</p>'
+      body: `<!DOCTYPE html>
+<html>
+<body style="margin:0; padding:24px; background:#ecfeff; font-family: Arial, sans-serif; color:#1f2329;">
+  <div style="max-width:640px; margin:0 auto;">
+    <div style="font-size:12px; color:#0e7490;">Order Update</div>
+    <div style="font-size:20px; font-weight:700;">Order Approved</div>
+    <div style="height:12px;"></div>
+    <div style="background:#ffffff; border-radius:12px; box-shadow:0 8px 20px rgba(14,116,144,0.08); padding:24px;">
+      <div style="display:inline-block; padding:6px 10px; background:#cffafe; color:#0e7490; border-radius:999px; font-size:12px; font-weight:600;">Approved</div>
+      <h2 style="margin:12px 0 8px; font-size:18px;">Hi {{.user.username}},</h2>
+      <p style="margin:0 0 12px;">Your order <strong>{{.order.no}}</strong> has been approved.</p>
+      <div style="background:#f0fdfa; border-radius:10px; padding:12px; font-size:14px;">
+        {{.message}}
+      </div>
+      <p style="margin:16px 0 0; font-size:13px; color:#0e7490;">You will receive another email when provisioning is complete.</p>
+    </div>
+    <div style="padding-top:12px; font-size:12px; color:#0891b2;">This is an automated message.</div>
+  </div>
+</body>
+</html>`
     },
     {
       key: 'order_rejected',
       label: '订单驳回 (order_rejected)',
       subject: 'Order Rejected: {{.order.no}}',
-      body: '<h2>Order Rejected</h2><p>Hi {{.user.username}}, order {{.order.no}} has been rejected.</p><p>{{.message}}</p>'
+      body: `<!DOCTYPE html>
+<html>
+<body style="margin:0; padding:24px; background:#fef2f2; font-family: Arial, sans-serif; color:#1f2329;">
+  <div style="max-width:640px; margin:0 auto;">
+    <div style="font-size:12px; color:#b91c1c;">Order Update</div>
+    <div style="font-size:20px; font-weight:700;">Order Rejected</div>
+    <div style="height:12px;"></div>
+    <div style="background:#ffffff; border-radius:12px; box-shadow:0 8px 20px rgba(185,28,28,0.08); padding:24px;">
+      <div style="display:inline-block; padding:6px 10px; background:#fee2e2; color:#b91c1c; border-radius:999px; font-size:12px; font-weight:600;">Rejected</div>
+      <h2 style="margin:12px 0 8px; font-size:18px;">Hi {{.user.username}},</h2>
+      <p style="margin:0 0 12px;">Your order <strong>{{.order.no}}</strong> has been rejected.</p>
+      <div style="background:#fef2f2; border-radius:10px; padding:12px; font-size:14px;">
+        Reason: {{.message}}
+      </div>
+      <p style="margin:16px 0 0; font-size:13px; color:#b91c1c;">You can reply to this email if you need help.</p>
+    </div>
+    <div style="padding-top:12px; font-size:12px; color:#ef4444;">This is an automated message.</div>
+  </div>
+</body>
+</html>`
     }
   ]
 
   const configItems = computed(() => [
-    { key: 'smtp_host', label: 'SMTP Host', type: 'input' },
-    { key: 'smtp_port', label: 'SMTP Port', type: 'input' },
-    { key: 'smtp_user', label: 'SMTP User', type: 'input' },
+    {
+      key: 'smtp_host',
+      label: 'SMTP Host',
+      type: 'input',
+      props: { disabled: !canUpdateSmtp.value }
+    },
+    {
+      key: 'smtp_port',
+      label: 'SMTP Port',
+      type: 'input',
+      props: { disabled: !canUpdateSmtp.value }
+    },
+    {
+      key: 'smtp_user',
+      label: 'SMTP User',
+      type: 'input',
+      props: { disabled: !canUpdateSmtp.value }
+    },
     {
       key: 'smtp_pass',
       label: 'SMTP Password',
       type: 'input',
-      props: { type: 'password', showPassword: true }
+      props: { type: 'password', showPassword: true, disabled: !canUpdateSmtp.value }
     },
-    { key: 'smtp_from', label: 'SMTP From', type: 'input', span: 24 },
-    { key: 'smtp_enabled', label: '启用 SMTP', type: 'switch' },
-    { key: 'email_enabled', label: '启用邮件', type: 'switch' },
-    { key: 'email_expire_enabled', label: '发送到期提醒邮件', type: 'switch' },
+    {
+      key: 'smtp_from',
+      label: 'SMTP From',
+      type: 'input',
+      span: 24,
+      props: { disabled: !canUpdateSmtp.value }
+    },
+    {
+      key: 'smtp_enabled',
+      label: '启用 SMTP',
+      type: 'switch',
+      props: { disabled: !canUpdateSmtp.value }
+    },
+    {
+      key: 'email_enabled',
+      label: '启用邮件',
+      type: 'switch',
+      props: { disabled: !canUpdateSettings.value }
+    },
+    {
+      key: 'email_expire_enabled',
+      label: '发送到期提醒邮件',
+      type: 'switch',
+      props: { disabled: !canUpdateSettings.value }
+    },
     {
       key: 'expire_reminder_days',
       label: '到期提醒天数',
       type: 'number',
-      props: { min: 1, class: 'full-width' }
+      props: { min: 1, class: 'full-width', disabled: !canUpdateSettings.value }
     },
     { key: 'smtp_test', label: 'SMTP 测试', span: 24 }
   ])
-  const searchItems = computed(() => [
-    {
-      key: 'keyword',
-      label: '关键词',
-      type: 'input',
-      props: { clearable: true, placeholder: '名称或主题' }
-    },
-    {
-      key: 'enabled',
-      label: '状态',
-      type: 'select',
-      props: {
-        clearable: true,
-        options: [
-          { label: '启用', value: true },
-          { label: '停用', value: false }
-        ]
-      }
-    }
-  ])
   const templateItems = computed(() => [
-    { key: 'name', label: '名称', type: 'input', span: 16, props: { maxlength: 120 } },
+    { key: 'name', label: '名称', type: 'input', span: 16 },
     { key: 'enabled', label: '启用', type: 'switch', span: 8 },
-    { key: 'subject', label: '主题', type: 'input', span: 24, props: { maxlength: 300 } },
+    { key: 'subject', label: '主题', type: 'input', span: 24 },
     { key: 'body', label: '内容', span: 24 },
     { key: 'template_test', label: '模板测试', span: 24 }
   ])
-  const templateRules: FormRules<TemplateForm> = {
-    name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
-    subject: [{ required: true, message: '请输入邮件主题', trigger: 'blur' }],
-    body: [{ required: true, message: '请输入模板内容', trigger: 'change' }]
-  }
 
-  const fetchTemplates = async (params: TableParams) => {
+  const fetchTemplates = async () => {
+    if (!canViewTemplates.value) return { records: [], total: 0 }
     const response = await listEmailTemplates()
-    const keyword = String(params.keyword ?? '')
-      .trim()
-      .toLowerCase()
-    let rows = (response.data?.items ?? []).map(normalizeTemplate)
-    if (keyword) {
-      rows = rows.filter((row) => `${row.name} ${row.subject}`.toLowerCase().includes(keyword))
-    }
-    if (typeof params.enabled === 'boolean')
-      rows = rows.filter((row) => row.enabled === params.enabled)
-    const start = (params.current - 1) * params.size
-    return { records: rows.slice(start, start + params.size), total: rows.length }
+    const rows = (response.data?.items ?? []).map(normalizeTemplate)
+    return { records: rows, total: rows.length }
   }
 
   const {
@@ -351,12 +447,6 @@
     columnChecks,
     data,
     loading,
-    pagination,
-    getData,
-    searchParams,
-    resetSearchParams,
-    handleSizeChange,
-    handleCurrentChange,
     refreshData,
     refreshCreate,
     refreshUpdate,
@@ -364,7 +454,6 @@
   } = useTable({
     core: {
       apiFn: fetchTemplates,
-      apiParams: { current: 1, size: 20, ...searchForm.value },
       columnsFactory: () => [
         { prop: 'id', label: 'ID', width: 80 },
         { prop: 'name', label: '名称', minWidth: 180, showOverflowTooltip: true },
@@ -392,16 +481,11 @@
     }
   }
 
-  function handleSearch(params: SearchForm): void {
-    Object.assign(searchParams, params)
-    getData()
-  }
-
   async function loadConfig(): Promise<void> {
     configLoading.value = true
     try {
-      const [map, smtpResponse] = await Promise.all([fetchSettingMap(), getSmtpConfig()])
-      const smtp = smtpResponse.data
+      const map = canViewSettings.value ? await fetchSettingMap() : new Map<string, unknown>()
+      const smtp = canViewSmtp.value ? (await getSmtpConfig()).data : undefined
       configForm.smtp_host = String(smtp?.host ?? settingString(map, 'smtp_host'))
       configForm.smtp_port = String(smtp?.port ?? settingString(map, 'smtp_port'))
       configForm.smtp_user = String(smtp?.user ?? settingString(map, 'smtp_user'))
@@ -417,21 +501,26 @@
   }
 
   async function saveConfig(): Promise<void> {
+    if (!canUpdateSettings.value && !canUpdateSmtp.value) return
     configSaving.value = true
     try {
-      await updateSmtpConfig({
-        host: configForm.smtp_host,
-        port: configForm.smtp_port,
-        user: configForm.smtp_user,
-        pass: configForm.smtp_pass,
-        from: configForm.smtp_from,
-        enabled: configForm.smtp_enabled
-      })
-      await saveSettingItems([
-        booleanSetting('email_enabled', configForm.email_enabled),
-        booleanSetting('email_expire_enabled', configForm.email_expire_enabled),
-        stringSetting('expire_reminder_days', configForm.expire_reminder_days)
-      ])
+      if (canUpdateSmtp.value) {
+        await updateSmtpConfig({
+          host: configForm.smtp_host,
+          port: configForm.smtp_port,
+          user: configForm.smtp_user,
+          pass: configForm.smtp_pass,
+          from: configForm.smtp_from,
+          enabled: configForm.smtp_enabled
+        })
+      }
+      if (canUpdateSettings.value) {
+        await saveSettingItems([
+          booleanSetting('email_enabled', configForm.email_enabled),
+          booleanSetting('email_expire_enabled', configForm.email_expire_enabled),
+          stringSetting('expire_reminder_days', configForm.expire_reminder_days)
+        ])
+      }
       ElMessage.success('邮件配置已保存')
     } finally {
       configSaving.value = false
@@ -439,7 +528,8 @@
   }
 
   function variables(): Record<string, unknown> {
-    return { ...mockData, now: new Date().toISOString() }
+    mockData.now = new Date().toISOString()
+    return { ...mockData }
   }
 
   function resolvePath(root: Record<string, unknown>, path: string): unknown {
@@ -461,14 +551,18 @@
   }
 
   async function sendSmtpTest(): Promise<void> {
+    if (!canTestSmtp.value) return
     if (!smtpTestTo.value.trim()) {
       ElMessage.error('请输入接收人邮箱')
       return
     }
-    const templateResponse = await listEmailTemplates()
-    const enabledTemplate = (templateResponse.data?.items ?? [])
-      .map(normalizeTemplate)
-      .find((item) => item.enabled)
+    let enabledTemplate: EmailTemplateRow | undefined
+    if (canViewTemplates.value) {
+      const templateResponse = await listEmailTemplates()
+      enabledTemplate = (templateResponse.data?.items ?? [])
+        .map(normalizeTemplate)
+        .find((item) => item.enabled)
+    }
     await testSmtpConfig(
       enabledTemplate
         ? {
@@ -488,6 +582,7 @@
   }
 
   function openTemplate(row?: EmailTemplateRow): void {
+    if (!canUpdateTemplates.value) return
     Object.assign(templateForm, row ?? createTemplateForm())
     defaultTemplateKey.value = undefined
     templateTestTo.value = ''
@@ -514,13 +609,14 @@
 
   function showHelp(): void {
     ElMessageBox.alert(
-      '在编辑器工具栏的“插入变量”菜单中选择占位符。发送预览和测试邮件时会使用模拟数据替换这些变量。',
-      '模板变量',
+      '编辑模式切换：点击工具栏右上角的 </> 按钮可在可视化模式和 HTML 源码模式之间切换。\n\n插入模板变量：点击工具栏的“插入变量”按钮，从下拉菜单中选择要插入的变量（如 {{.user.username}}）。\n\n模板变量保护：插入的变量会被自动保护，整体可删除但不可修改内容。变量会以渐变色背景显示。\n\n快捷键：Ctrl+B 加粗；Ctrl+I 斜体；Ctrl+U 下划线；Ctrl+Z 撤销；Ctrl+Y 重做；Ctrl+Shift+S 切换编辑模式；Esc 退出全屏。\n\n右键菜单：在编辑器中右键可快速访问撤销、重做、剪切、复制、粘贴和清除格式等功能。\n\n发送预览和测试邮件时会使用模拟数据替换这些变量。',
+      '编辑器使用帮助',
       { confirmButtonText: '知道了' }
     )
   }
 
   async function sendTemplateTest(): Promise<void> {
+    if (!canTestSmtp.value) return
     if (!templateTestTo.value.trim()) {
       ElMessage.error('请输入测试收件人')
       return
@@ -540,8 +636,7 @@
   }
 
   async function saveTemplate(): Promise<void> {
-    const valid = await templateFormRef.value?.validate()?.catch(() => false)
-    if (!valid) return
+    if (!canUpdateTemplates.value) return
     templateSaving.value = true
     try {
       const payload = {
@@ -562,6 +657,7 @@
   }
 
   async function removeTemplate(row: EmailTemplateRow): Promise<void> {
+    if (!canDeleteTemplates.value) return
     if (row.id === null) return
     await ElMessageBox.confirm('确认删除该邮件模板吗？', '删除模板', { type: 'warning' })
     await deleteEmailTemplate(row.id)
@@ -612,6 +708,35 @@
 
   .inline-action :is(.el-input) {
     flex: 1;
+  }
+
+  .field-help {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--art-gray-600);
+  }
+
+  .template-details {
+    margin-top: 12px;
+  }
+
+  .template-vars {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 12px;
+    color: var(--art-gray-800);
+  }
+
+  .mock-data {
+    max-height: 320px;
+    padding: 12px;
+    margin: 6px 0 0;
+    overflow: auto;
+    color: var(--art-gray-800);
+    white-space: pre-wrap;
+    background: var(--art-hover-color);
+    border: 1px solid var(--art-card-border);
+    border-radius: calc(var(--custom-radius) / 2 + 2px);
   }
 
   .preview-body,

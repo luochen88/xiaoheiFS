@@ -31,6 +31,7 @@
         @pagination:size-change="handlePageSizeChange"
         @pagination:current-change="handlePageCurrentChange"
       >
+        <ElTableColumn type="selection" width="48" />
         <template #avatar="{ row }">
           <ElAvatar :size="36" :src="row.avatar">
             {{ row.username?.slice(0, 1)?.toUpperCase() || 'U' }}
@@ -145,6 +146,7 @@
   import ArtButtonMore from '@/components/core/forms/art-button-more/index.vue'
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
   import { useTable } from '@/hooks/core/useTable'
+  import { useAuthStore } from '@/stores/auth'
   import { INPUT_LIMITS } from '@/constants/inputLimits'
   import UserDetailDrawer from './modules/user-detail-drawer.vue'
   import UserDialog from './modules/user-dialog.vue'
@@ -155,6 +157,7 @@
   interface UserSearchForm {
     keyword: string
     status?: string
+    range?: string[]
   }
 
   interface UserTableParams extends Api.Common.CommonSearchParams, UserSearchForm {}
@@ -209,6 +212,8 @@
   }
 
   const showSearchBar = ref(true)
+  const router = useRouter()
+  const auth = useAuthStore()
   const detailLoading = ref(false)
   const dialogVisible = ref(false)
   const dialogMode = ref<'create' | 'edit'>('create')
@@ -287,7 +292,8 @@
   function createDefaultSearchForm(): UserSearchForm {
     return {
       keyword: '',
-      status: undefined
+      status: undefined,
+      range: []
     }
   }
 
@@ -458,15 +464,18 @@
   async function fetchUserTable(
     params: UserTableParams
   ): Promise<Api.Common.PaginatedResponse<UserTableRow>> {
-    const payload = await fetchAdminUsers({
-      limit: params.size,
-      offset: (params.current - 1) * params.size
-    })
+    const firstPayload = await fetchAdminUsers({ limit: 500, offset: 0 })
+    const total = Number(firstPayload.total ?? firstPayload.items?.length ?? 0)
+    const allItems = [...(firstPayload.items || [])]
+    for (let offset = allItems.length; offset < total; offset += 500) {
+      const payload = await fetchAdminUsers({ limit: 500, offset })
+      allItems.push(...(payload.items || []))
+      if (!payload.items?.length) break
+    }
     const keyword = params.keyword?.trim().toLocaleLowerCase() || ''
-    let records = attachTierNames(
-      (payload.items || []).map(normalizeUser).filter((item) => item.role !== 'admin')
-    )
-    records = records.filter((item) => {
+    const records = attachTierNames(
+      allItems.map(normalizeUser).filter((item) => item.role !== 'admin')
+    ).filter((item) => {
       const matchesStatus = !params.status || item.status === params.status
       const matchesKeyword =
         !keyword ||
@@ -475,11 +484,12 @@
         )
       return matchesStatus && matchesKeyword
     })
+    const start = (params.current - 1) * params.size
     return {
-      records,
+      records: records.slice(start, start + params.size),
       current: params.current,
       size: params.size,
-      total: Number(payload.total ?? records.length)
+      total: records.length
     }
   }
 
@@ -746,15 +756,11 @@
       return
     }
 
-    const consoleUrl = `/console#impersonate_token=${encodeURIComponent(token)}`
-    const popup = window.open(consoleUrl, '_blank', 'noopener')
-
-    if (!popup) {
-      window.location.href = consoleUrl
-      return
-    }
-
-    ElMessage.success('已切换到该用户，可在新标签页继续操作')
+    auth.token = token
+    auth.profile = payload.user || null
+    localStorage.setItem('user_token', token)
+    ElMessage.success('已切换到该用户')
+    await router.push({ name: 'ConsoleDashboard' })
   }
 
   async function handleUpdateRealnameStatus(targetId?: number | null) {

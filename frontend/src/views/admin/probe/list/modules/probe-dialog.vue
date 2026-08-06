@@ -8,7 +8,7 @@
   >
     <ElForm ref="formRef" :model="localForm" :rules="rules" label-width="110px">
       <ElFormItem label="探针名称" prop="name">
-        <ElInput v-model="localForm.name" placeholder="例如：香港节点 A" :maxlength="128" />
+        <ElInput v-model="localForm.name" placeholder="例如：香港节点 A" />
       </ElFormItem>
 
       <ElFormItem label="Agent ID" prop="agent_id">
@@ -16,7 +16,6 @@
           v-model="localForm.agent_id"
           :disabled="isEditMode"
           placeholder="例如：hk-node-a"
-          :maxlength="128"
         />
       </ElFormItem>
 
@@ -92,15 +91,9 @@
   const localForm = reactive<ProbeDialogFormValue>(createDefaultForm())
 
   const rules = computed<FormRules>(() => ({
-    name: [
-      { required: true, message: '请输入探针名称', trigger: 'blur' },
-      { max: 128, message: '探针名称长度不能超过 128 个字符', trigger: 'blur' }
-    ],
-    agent_id: [
-      { required: true, message: '请输入 Agent ID', trigger: 'blur' },
-      { max: 128, message: 'Agent ID 长度不能超过 128 个字符', trigger: 'blur' }
-    ],
-    os_type: [{ required: true, message: '请选择系统类型', trigger: 'change' }]
+    name: [],
+    agent_id: [{ required: true, message: '请输入 Agent ID', trigger: 'blur' }],
+    os_type: []
   }))
 
   watch(

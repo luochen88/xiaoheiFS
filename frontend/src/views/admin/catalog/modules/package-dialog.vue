@@ -8,7 +8,7 @@
   >
     <ElForm label-position="top">
       <ElFormItem label="名称">
-        <ElInput v-model.trim="localForm.name" maxlength="120" placeholder="请输入名称" />
+        <ElInput v-model.trim="localForm.name" placeholder="请输入名称" />
       </ElFormItem>
       <ElFormItem label="线路">
         <ElSelect
@@ -38,7 +38,7 @@
       <ElRow :gutter="12">
         <ElCol :span="12"
           ><ElFormItem label="磁盘 (GB)"
-            ><ElInputNumber v-model="localForm.disk_gb" :min="1" class="full-width" /></ElFormItem
+            ><ElInputNumber v-model="localForm.disk_gb" :min="10" class="full-width" /></ElFormItem
         ></ElCol>
         <ElCol :span="12"
           ><ElFormItem label="带宽 (Mbps)"
@@ -51,10 +51,7 @@
       <ElRow :gutter="12">
         <ElCol :span="12"
           ><ElFormItem label="CPU 型号"
-            ><ElInput
-              v-model.trim="localForm.cpu_model"
-              maxlength="120"
-              placeholder="可选" /></ElFormItem
+            ><ElInput v-model.trim="localForm.cpu_model" placeholder="可选" /></ElFormItem
         ></ElCol>
         <ElCol :span="12"
           ><ElFormItem label="端口数"

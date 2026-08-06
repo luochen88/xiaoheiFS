@@ -15,16 +15,12 @@
 
           <div class="hero-stats">
             <div class="stat-item">
-              <span class="stat-label">Joined</span>
+              <span class="stat-label">加入日期</span>
               <strong>{{ formatDate(profile.created_at) }}</strong>
             </div>
             <div class="stat-item">
-              <span class="stat-label">Permissions</span>
+              <span class="stat-label">权限数</span>
               <strong>{{ permissionCount }}</strong>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Status</span>
-              <strong>{{ statusLabel }}</strong>
             </div>
           </div>
         </ElCard>
@@ -35,25 +31,23 @@
           <template #header>
             <div class="section-header">
               <div>
-                <div class="section-title">Basic Information</div>
-                <div class="section-subtitle">
-                  View current administrator profile information and permission group details.
-                </div>
+                <div class="section-title">基本信息</div>
+                <div class="section-subtitle"> 查看当前管理员资料与权限组信息。 </div>
               </div>
 
-              <ElButton type="primary" plain @click="openEditProfile">Edit Profile</ElButton>
+              <ElButton type="primary" plain @click="openEditProfile">编辑资料</ElButton>
             </div>
           </template>
 
           <ElDescriptions :column="2" border>
-            <ElDescriptionsItem label="Username">{{ profile.username || '-' }}</ElDescriptionsItem>
-            <ElDescriptionsItem label="Role">{{ roleLabel }}</ElDescriptionsItem>
-            <ElDescriptionsItem label="Email">{{ profile.email || '-' }}</ElDescriptionsItem>
-            <ElDescriptionsItem label="QQ">{{ profile.qq || '-' }}</ElDescriptionsItem>
-            <ElDescriptionsItem label="Permission Group">
+            <ElDescriptionsItem label="用户名">{{ profile.username || '-' }}</ElDescriptionsItem>
+            <ElDescriptionsItem label="角色">{{ roleLabel }}</ElDescriptionsItem>
+            <ElDescriptionsItem label="邮箱地址">{{ profile.email || '-' }}</ElDescriptionsItem>
+            <ElDescriptionsItem label="QQ 号码">{{ profile.qq || '-' }}</ElDescriptionsItem>
+            <ElDescriptionsItem label="权限组">
               <ElTag :type="permissionTagType">{{ permissionGroupLabel }}</ElTag>
             </ElDescriptionsItem>
-            <ElDescriptionsItem label="Created At">
+            <ElDescriptionsItem label="注册时间">
               {{ formatDateTime(profile.created_at) }}
             </ElDescriptionsItem>
           </ElDescriptions>
@@ -63,13 +57,11 @@
           <template #header>
             <div class="section-header">
               <div>
-                <div class="section-title">Security</div>
-                <div class="section-subtitle">
-                  Update your login password regularly to keep the administrator account secure.
-                </div>
+                <div class="section-title">安全设置</div>
+                <div class="section-subtitle"> 定期修改密码可以保护管理员账号安全。 </div>
               </div>
 
-              <ElButton type="primary" plain @click="openChangePassword">Change Password</ElButton>
+              <ElButton type="primary" plain @click="openChangePassword">修改密码</ElButton>
             </div>
           </template>
 
@@ -78,11 +70,8 @@
               <ElIcon><Lock /></ElIcon>
             </div>
             <div class="security-copy">
-              <div class="security-title">Login Password</div>
-              <p>
-                The current password is not shown for security reasons. After changing it, use the
-                new password on your next login.
-              </p>
+              <div class="security-title">登录密码</div>
+              <p> 当前密码出于安全原因不会显示。修改后，下次登录请使用新密码。 </p>
             </div>
           </div>
         </ElCard>
@@ -91,13 +80,11 @@
           <template #header>
             <div class="section-header">
               <div>
-                <div class="section-title">Permissions</div>
-                <div class="section-subtitle">
-                  Current effective permissions for this administrator account.
-                </div>
+                <div class="section-title">权限列表</div>
+                <div class="section-subtitle"> 当前管理员账号的有效权限。 </div>
               </div>
 
-              <ElTag type="info">{{ permissionCount }} items</ElTag>
+              <ElTag type="info">{{ permissionCount }} 个权限</ElTag>
             </div>
           </template>
 
@@ -111,41 +98,41 @@
               {{ permissionLabel(permission) }}
             </ElTag>
           </div>
-          <ElEmpty v-else description="No permission data available" />
+          <ElEmpty v-else description="暂无权限信息" />
         </ElCard>
       </ElCol>
     </ElRow>
 
     <ElDialog
       v-model="profileDialogVisible"
-      title="Edit Profile"
+      title="编辑资料"
       width="520px"
       destroy-on-close
       align-center
     >
       <ElForm ref="profileFormRef" :model="profileForm" :rules="profileRules" label-position="top">
-        <ElFormItem label="Email" prop="email">
+        <ElFormItem label="邮箱地址" prop="email">
           <ElInput
             v-model.trim="profileForm.email"
             :maxlength="INPUT_LIMITS.EMAIL"
-            placeholder="Enter email address"
+            placeholder="请输入邮箱地址"
           />
         </ElFormItem>
 
-        <ElFormItem label="QQ" prop="qq">
+        <ElFormItem label="QQ 号码" prop="qq">
           <ElInput
             v-model.trim="profileForm.qq"
             :maxlength="INPUT_LIMITS.QQ"
-            placeholder="Enter QQ number"
+            placeholder="请输入QQ号码"
           />
         </ElFormItem>
       </ElForm>
 
       <template #footer>
         <div class="dialog-footer">
-          <ElButton @click="profileDialogVisible = false">Cancel</ElButton>
+          <ElButton @click="profileDialogVisible = false">取消</ElButton>
           <ElButton type="primary" :loading="profileSubmitting" @click="handleUpdateProfile">
-            Save
+            保存
           </ElButton>
         </div>
       </template>
@@ -153,7 +140,7 @@
 
     <ElDialog
       v-model="passwordDialogVisible"
-      title="Change Password"
+      title="修改密码"
       width="520px"
       destroy-on-close
       align-center
@@ -164,42 +151,42 @@
         :rules="passwordRules"
         label-position="top"
       >
-        <ElFormItem label="Current Password" prop="old_password">
+        <ElFormItem label="当前密码" prop="old_password">
           <ElInput
             v-model="passwordForm.old_password"
             type="password"
             show-password
             :maxlength="INPUT_LIMITS.PASSWORD"
-            placeholder="Enter current password"
+            placeholder="请输入当前密码"
           />
         </ElFormItem>
 
-        <ElFormItem label="New Password" prop="new_password">
+        <ElFormItem label="新密码" prop="new_password">
           <ElInput
             v-model="passwordForm.new_password"
             type="password"
             show-password
             :maxlength="INPUT_LIMITS.PASSWORD"
-            placeholder="Enter new password"
+            placeholder="请输入新密码（至少6位）"
           />
         </ElFormItem>
 
-        <ElFormItem label="Confirm New Password" prop="confirm_password">
+        <ElFormItem label="确认新密码" prop="confirm_password">
           <ElInput
             v-model="passwordForm.confirm_password"
             type="password"
             show-password
             :maxlength="INPUT_LIMITS.PASSWORD"
-            placeholder="Enter new password again"
+            placeholder="请再次输入新密码"
           />
         </ElFormItem>
       </ElForm>
 
       <template #footer>
         <div class="dialog-footer">
-          <ElButton @click="passwordDialogVisible = false">Cancel</ElButton>
+          <ElButton @click="passwordDialogVisible = false">取消</ElButton>
           <ElButton type="primary" :loading="passwordSubmitting" @click="handleChangePassword">
-            Save
+            保存
           </ElButton>
         </div>
       </template>
@@ -302,12 +289,21 @@
     const map = new Map<string, string>()
 
     allPermissions.value.forEach((permission) => {
-      const code = String(permission.code ?? '').trim()
+      const code = String(permission.code ?? permission.Code ?? '').trim()
       if (!code) {
         return
       }
 
-      map.set(code, String(permission.friendly_name ?? permission.name ?? code))
+      map.set(
+        code,
+        String(
+          permission.friendly_name ??
+            permission.FriendlyName ??
+            permission.name ??
+            permission.Name ??
+            code
+        )
+      )
     })
 
     return map
@@ -334,20 +330,9 @@
   const roleLabel = computed(() => {
     const role = String(profile.value.role || '').trim()
     if (role === 'admin') {
-      return 'Administrator'
+      return '管理员'
     }
-    return role || 'Unknown'
-  })
-
-  const statusLabel = computed(() => {
-    const status = String(profile.value.status || '').trim()
-    if (status === 'active') {
-      return 'Active'
-    }
-    if (status === 'disabled') {
-      return 'Disabled'
-    }
-    return status || '-'
+    return role || '未知'
   })
 
   const permissionGroupLabel = computed(() => {
@@ -376,15 +361,15 @@
 
   const profileRules = computed<FormRules>(() => ({
     email: [
-      { required: true, message: 'Please enter an email address', trigger: 'blur' },
+      { required: true, message: '请输入邮箱', trigger: 'blur' },
       {
         type: 'email',
-        message: 'Please enter a valid email address',
+        message: '请输入有效的邮箱格式',
         trigger: ['blur', 'change']
       },
       {
         max: INPUT_LIMITS.EMAIL,
-        message: `Email must be at most ${INPUT_LIMITS.EMAIL} characters`,
+        message: `邮箱长度不能超过 ${INPUT_LIMITS.EMAIL} 个字符`,
         trigger: 'blur'
       }
     ],
@@ -392,8 +377,9 @@
       {
         validator: (_rule, value, callback) => {
           const text = String(value || '').trim()
-          if (text && !/^\d+$/.test(text)) {
-            callback(new Error('QQ must contain digits only'))
+          const qq = Number(text)
+          if (text && (!Number.isInteger(qq) || qq <= 0)) {
+            callback(new Error('QQ号必须是正整数'))
             return
           }
           callback()
@@ -402,31 +388,29 @@
       },
       {
         max: INPUT_LIMITS.QQ,
-        message: `QQ must be at most ${INPUT_LIMITS.QQ} characters`,
+        message: `QQ 长度不能超过 ${INPUT_LIMITS.QQ} 个字符`,
         trigger: 'blur'
       }
     ]
   }))
 
   const passwordRules = computed<FormRules>(() => ({
-    old_password: [
-      { required: true, message: 'Please enter the current password', trigger: 'blur' }
-    ],
+    old_password: [{ required: true, message: '请输入当前密码', trigger: 'blur' }],
     new_password: [
-      { required: true, message: 'Please enter a new password', trigger: 'blur' },
-      { min: 6, message: 'New password must be at least 6 characters', trigger: 'blur' },
+      { required: true, message: '请输入新密码', trigger: 'blur' },
+      { min: 6, message: '密码至少需要6个字符', trigger: 'blur' },
       {
         max: INPUT_LIMITS.PASSWORD,
-        message: `New password must be at most ${INPUT_LIMITS.PASSWORD} characters`,
+        message: `密码长度不能超过 ${INPUT_LIMITS.PASSWORD} 个字符`,
         trigger: 'blur'
       }
     ],
     confirm_password: [
-      { required: true, message: 'Please confirm the new password', trigger: 'blur' },
+      { required: true, message: '请确认新密码', trigger: 'blur' },
       {
         validator: (_rule, value, callback) => {
           if (String(value || '') !== String(passwordForm.new_password || '')) {
-            callback(new Error('The two passwords do not match'))
+            callback(new Error('两次输入的密码不一致'))
             return
           }
           callback()
@@ -497,7 +481,7 @@
       profileForm.qq = String(profile.value.qq || '')
       userStore.setUserInfo(mapAdminProfileToUserInfo(profile.value))
     } catch (error: any) {
-      ElMessage.error(error?.response?.data?.error || 'Failed to load profile')
+      ElMessage.error(error?.response?.data?.error || '获取个人资料失败')
     }
   }
 
@@ -551,11 +535,11 @@
         email: String(profileForm.email || '').trim(),
         qq: String(profileForm.qq || '').trim()
       })
-      ElMessage.success('Profile updated successfully')
+      ElMessage.success('资料已更新')
       profileDialogVisible.value = false
       await fetchProfileData()
     } catch (error: any) {
-      ElMessage.error(error?.response?.data?.error || 'Failed to update profile')
+      ElMessage.error(error?.response?.data?.error || '更新失败')
     } finally {
       profileSubmitting.value = false
     }
@@ -578,15 +562,13 @@
         old_password: passwordForm.old_password,
         new_password: passwordForm.new_password
       })
-      ElMessage.success(
-        'Password updated successfully. Please use the new password next time you log in.'
-      )
+      ElMessage.success('密码已修改，请重新登录')
       passwordDialogVisible.value = false
       passwordForm.old_password = ''
       passwordForm.new_password = ''
       passwordForm.confirm_password = ''
     } catch (error: any) {
-      ElMessage.error(error?.response?.data?.error || 'Failed to change password')
+      ElMessage.error(error?.response?.data?.error || '密码修改失败')
     } finally {
       passwordSubmitting.value = false
     }

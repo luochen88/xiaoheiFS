@@ -1,41 +1,19 @@
 <template>
   <div class="coupon-page art-full-height">
-    <ArtSearchBar
-      v-if="canView && activeTab === 'groups'"
-      v-model="groupSearchForm"
-      :items="groupSearchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleGroupSearch"
-      @reset="handleGroupReset"
-    />
-    <ArtSearchBar
-      v-if="canView && activeTab === 'coupons'"
-      v-model="couponSearchForm"
-      :items="couponSearchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleCouponSearch"
-      @reset="handleCouponReset"
-    />
-
     <ElCard shadow="never">
       <div class="page-header">
         <div>
-          <div class="page-title">Coupons</div>
-          <div class="page-subtitle">Manage coupon groups, coupon codes, and batch generation.</div>
+          <div class="page-title">优惠券管理</div>
+          <div class="page-subtitle">管理商品组、优惠码和批量生成。</div>
         </div>
 
-        <ElButton :loading="loading" @click="fetchAll">Refresh</ElButton>
+        <ElButton :loading="loading" @click="fetchAll">刷新</ElButton>
       </div>
 
-      <ElEmpty
-        v-if="!canView"
-        description="You do not have permission to view coupon management."
-      />
+      <ElEmpty v-if="!canView" description="当前账号没有查看优惠券管理的权限" />
 
       <ElTabs v-else v-model="activeTab">
-        <ElTabPane label="Product Groups" name="groups">
+        <ElTabPane v-if="canViewGroups" label="商品组" name="groups">
           <ArtTableHeader
             v-model:columns="groupColumnChecks"
             :show-search-bar="false"
@@ -43,21 +21,13 @@
             @refresh="refreshGroups"
           >
             <template #left>
-              <ElButton v-if="canManageGroups" type="primary" @click="openGroupDialog()">
-                New Group
+              <ElButton v-if="canCreateGroup" type="primary" @click="openGroupDialog()">
+                新增商品组
               </ElButton>
             </template>
           </ArtTableHeader>
 
-          <ArtTable
-            :loading="groupLoading"
-            :data="groups"
-            :columns="groupColumns"
-            :pagination="groupPagination"
-            row-key="id"
-            @pagination:size-change="handleGroupSizeChange"
-            @pagination:current-change="handleGroupCurrentChange"
-          >
+          <ArtTable :loading="groupLoading" :data="groups" :columns="groupColumns" row-key="id">
             <template #rules="{ row }">
               {{ row.rules.length }}
             </template>
@@ -67,27 +37,27 @@
             <template #operation="{ row }">
               <div class="table-actions">
                 <ElButton
-                  v-if="canManageGroups"
+                  v-if="canUpdateGroup"
                   link
                   type="primary"
                   @click="openGroupDialog(row as CouponGroupRow)"
                 >
-                  Edit
+                  编辑
                 </ElButton>
                 <ElButton
-                  v-if="canManageGroups"
+                  v-if="canDeleteGroup"
                   link
                   type="danger"
                   @click="removeGroup(row as CouponGroupRow)"
                 >
-                  Delete
+                  删除
                 </ElButton>
               </div>
             </template>
           </ArtTable>
         </ElTabPane>
 
-        <ElTabPane label="Coupons" name="coupons">
+        <ElTabPane v-if="canViewCoupons" label="优惠码" name="coupons">
           <ArtTableHeader
             v-model:columns="couponColumnChecks"
             :show-search-bar="false"
@@ -95,22 +65,14 @@
             @refresh="refreshCoupons"
           >
             <template #left>
-              <ElButton v-if="canManageCoupons" type="primary" @click="openCouponDialog()">
-                New Coupon
+              <ElButton v-if="canCreateCoupon" type="primary" @click="openCouponDialog()">
+                新增优惠码
               </ElButton>
-              <ElButton v-if="canBatchGenerate" @click="openBatchDialog">Batch Generate</ElButton>
+              <ElButton v-if="canBatchGenerate" @click="openBatchDialog">批量生成</ElButton>
             </template>
           </ArtTableHeader>
 
-          <ArtTable
-            :loading="couponLoading"
-            :data="coupons"
-            :columns="couponColumns"
-            :pagination="couponPagination"
-            row-key="id"
-            @pagination:size-change="handleCouponSizeChange"
-            @pagination:current-change="handleCouponCurrentChange"
-          >
+          <ArtTable :loading="couponLoading" :data="coupons" :columns="couponColumns" row-key="id">
             <template #discount="{ row }">
               {{ formatDiscount(row.discount_permille) }}
             </template>
@@ -122,12 +84,12 @@
             </template>
             <template #new_user_only="{ row }">
               <ElTag :type="row.new_user_only ? 'warning' : 'info'">
-                {{ row.new_user_only ? 'Yes' : 'No' }}
+                {{ row.new_user_only ? '是' : '否' }}
               </ElTag>
             </template>
             <template #active="{ row }">
               <ElTag :type="row.active ? 'success' : 'info'">
-                {{ row.active ? 'Active' : 'Inactive' }}
+                {{ row.active ? '启用' : '停用' }}
               </ElTag>
             </template>
             <template #created_at="{ row }">
@@ -136,20 +98,20 @@
             <template #operation="{ row }">
               <div class="table-actions">
                 <ElButton
-                  v-if="canManageCoupons"
+                  v-if="canUpdateCoupon"
                   link
                   type="primary"
                   @click="openCouponDialog(row as CouponRow)"
                 >
-                  Edit
+                  编辑
                 </ElButton>
                 <ElButton
-                  v-if="canManageCoupons"
+                  v-if="canDeleteCoupon"
                   link
                   type="danger"
                   @click="removeCoupon(row as CouponRow)"
                 >
-                  Delete
+                  删除
                 </ElButton>
               </div>
             </template>
@@ -196,6 +158,7 @@
     CouponProductGroupRecord,
     CouponRecord
   } from '@/services/admin'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { useTable } from '@/hooks/core/useTable'
   import {
     batchGenerateAdminCoupons,
@@ -209,12 +172,9 @@
     fetchAdminPackages,
     fetchAdminPlanGroups,
     fetchAdminRegions,
-    hasAdminPermission,
     updateAdminCoupon,
     updateAdminCouponGroup
   } from '@/services/admin'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
-  import { INPUT_LIMITS } from '@/constants/inputLimits'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import CouponBatchDialog from './modules/coupon-batch-dialog.vue'
   import CouponDialog from './modules/coupon-dialog.vue'
@@ -278,15 +238,9 @@
     updated_at: string
   }
 
-  interface GroupTableParams extends Api.Common.CommonSearchParams {
-    keyword: string
-  }
+  type GroupTableParams = Api.Common.CommonSearchParams
 
-  interface CouponTableParams extends Api.Common.CommonSearchParams {
-    keyword: string
-    product_group_id: number | null
-    active: 'active' | 'inactive' | null
-  }
+  type CouponTableParams = Api.Common.CommonSearchParams
 
   interface CouponGroupFormValue {
     id: number | null
@@ -325,17 +279,16 @@
   }
 
   const scopeOptions = [
-    { label: 'All Products', value: 'all' },
-    { label: 'All Addons', value: 'all_addons' },
-    { label: 'Goods Type', value: 'goods_type' },
-    { label: 'Goods Type + Region', value: 'goods_type_region' },
-    { label: 'Plan Group', value: 'plan_group' },
-    { label: 'Package', value: 'package' },
-    { label: 'Addon Config', value: 'addon_config' }
+    { label: '全部商品', value: 'all' },
+    { label: '全部附加项', value: 'all_addons' },
+    { label: '商品类型', value: 'goods_type' },
+    { label: '商品类型 + 地区', value: 'goods_type_region' },
+    { label: '线路', value: 'plan_group' },
+    { label: '套餐', value: 'package' },
+    { label: '附加项配置', value: 'addon_config' }
   ]
 
-  const adminAuthStore = useAdminAuthStore()
-  const { profile: info } = storeToRefs(adminAuthStore)
+  const { hasAuth } = useAuth()
 
   const activeTab = ref('groups')
   const groupSubmitting = ref(false)
@@ -352,94 +305,38 @@
   const planGroups = ref<PlanGroupOptionRow[]>([])
   const packages = ref<PackageOptionRow[]>([])
 
-  const groupSearchForm = ref({ keyword: '' })
-  const couponSearchForm = ref<CouponTableParams>({
-    current: 1,
-    size: 20,
-    keyword: '',
-    product_group_id: null,
-    active: null
-  })
-
   const groupForm = ref<CouponGroupFormValue>(createDefaultGroupForm())
   const couponForm = ref<CouponFormValue>(createDefaultCouponForm())
   const batchForm = ref<CouponBatchFormValue>(createDefaultBatchForm())
 
-  const canView = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['coupon_group.list', 'coupon.list'])
-  )
-  const canManageGroups = computed(() =>
-    hasAdminPermission(info.value?.permissions, [
-      'coupon_group.create',
-      'coupon_group.update',
-      'coupon_group.delete'
-    ])
-  )
-  const canManageCoupons = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['coupon.create', 'coupon.update', 'coupon.delete'])
-  )
-  const canBatchGenerate = computed(() =>
-    hasAdminPermission(info.value?.permissions, ['coupon.batch_generate'])
-  )
-
-  const groupSearchItems = [
-    {
-      key: 'keyword',
-      label: 'Keyword',
-      type: 'input',
-      props: { clearable: true, placeholder: 'Search group name' }
-    }
-  ]
-
-  const couponSearchItems = computed(() => [
-    {
-      key: 'keyword',
-      label: 'Code',
-      type: 'input',
-      props: { clearable: true, placeholder: 'Search coupon code' }
-    },
-    {
-      key: 'product_group_id',
-      label: 'Group',
-      type: 'select',
-      props: { clearable: true, filterable: true, options: groupOptions.value }
-    },
-    {
-      key: 'active',
-      label: 'Status',
-      type: 'select',
-      props: {
-        clearable: true,
-        options: [
-          { label: 'Active', value: 'active' },
-          { label: 'Inactive', value: 'inactive' }
-        ]
-      }
-    }
-  ])
+  const canViewGroups = computed(() => hasAuth('coupon_group.list'))
+  const canViewCoupons = computed(() => hasAuth('coupon.list'))
+  const canView = computed(() => canViewGroups.value || canViewCoupons.value)
+  const canCreateGroup = computed(() => hasAuth('coupon_group.create'))
+  const canUpdateGroup = computed(() => hasAuth('coupon_group.update'))
+  const canDeleteGroup = computed(() => hasAuth('coupon_group.delete'))
+  const canCreateCoupon = computed(() => hasAuth('coupon.create'))
+  const canUpdateCoupon = computed(() => hasAuth('coupon.update'))
+  const canDeleteCoupon = computed(() => hasAuth('coupon.delete'))
+  const canBatchGenerate = computed(() => hasAuth('coupon.batch_generate'))
 
   const {
     columnChecks: groupColumnChecks,
     columns: groupColumns,
     data: groups,
     loading: groupLoading,
-    pagination: groupPagination,
-    searchParams: groupSearchParams,
-    getData: refreshGroups,
-    resetSearchParams: resetGroupSearchParams,
-    handleSizeChange: handleGroupSizeChange,
-    handleCurrentChange: handleGroupCurrentChange
+    getData: refreshGroups
   } = useTable({
     core: {
       apiFn: fetchGroupTable,
-      apiParams: { current: 1, size: 20, keyword: '' },
+      apiParams: { current: 1, size: 1000 },
       immediate: false,
       columnsFactory: () => [
         { prop: 'id', label: 'ID', width: 90 },
-        { prop: 'name', label: 'Name', minWidth: 220 },
-        { prop: 'rules', label: 'Rules', width: 100, useSlot: true },
-        { prop: 'preview', label: 'Rule Preview', minWidth: 280, useSlot: true },
-        { prop: 'operation', label: 'Actions', width: 170, fixed: 'right', useSlot: true }
+        { prop: 'name', label: '名称', minWidth: 220 },
+        { prop: 'rules', label: '规则数', width: 100, useSlot: true },
+        { prop: 'preview', label: '规则预览', minWidth: 280, useSlot: true },
+        { prop: 'operation', label: '操作', width: 170, fixed: 'right', useSlot: true }
       ]
     }
   })
@@ -449,27 +346,22 @@
     columns: couponColumns,
     data: coupons,
     loading: couponLoading,
-    pagination: couponPagination,
-    searchParams: couponSearchParams,
-    getData: refreshCoupons,
-    resetSearchParams: resetCouponSearchParams,
-    handleSizeChange: handleCouponSizeChange,
-    handleCurrentChange: handleCouponCurrentChange
+    getData: refreshCoupons
   } = useTable({
     core: {
       apiFn: fetchCouponTable,
-      apiParams: { current: 1, size: 20, keyword: '', product_group_id: null, active: null },
+      apiParams: { current: 1, size: 200 },
       immediate: false,
       columnsFactory: () => [
         { prop: 'id', label: 'ID', width: 90 },
-        { prop: 'code', label: 'Coupon Code', minWidth: 180 },
-        { prop: 'discount', label: 'Discount', width: 120, useSlot: true },
-        { prop: 'group', label: 'Group', minWidth: 200, useSlot: true },
-        { prop: 'policy', label: 'Policy', minWidth: 180, useSlot: true },
-        { prop: 'new_user_only', label: 'New Users', width: 100, useSlot: true },
-        { prop: 'active', label: 'Status', width: 100, useSlot: true },
-        { prop: 'created_at', label: 'Created At', minWidth: 180, useSlot: true },
-        { prop: 'operation', label: 'Actions', width: 170, fixed: 'right', useSlot: true }
+        { prop: 'code', label: '优惠码', minWidth: 180 },
+        { prop: 'discount', label: '折扣', width: 120, useSlot: true },
+        { prop: 'group', label: '商品组', minWidth: 200, useSlot: true },
+        { prop: 'policy', label: '限额', minWidth: 180, useSlot: true },
+        { prop: 'new_user_only', label: '仅新用户', width: 100, useSlot: true },
+        { prop: 'active', label: '状态', width: 100, useSlot: true },
+        { prop: 'created_at', label: '创建时间', minWidth: 180, useSlot: true },
+        { prop: 'operation', label: '操作', width: 170, fixed: 'right', useSlot: true }
       ]
     }
   })
@@ -480,12 +372,13 @@
     allGroups.value
       .filter((item) => item.id !== null)
       .map((item) => ({
-        label: `${item.name || 'Group'} (#${item.id})`,
+        label: `${item.name || '商品组'} (#${item.id})`,
         value: Number(item.id)
       }))
   )
 
   onMounted(() => {
+    if (!canViewGroups.value && canViewCoupons.value) activeTab.value = 'coupons'
     fetchAll()
   })
 
@@ -692,19 +585,19 @@
 
   function validateRule(rule: CouponRuleFormValue) {
     if (needGoodsType(rule.scope) && !rule.goods_type_id) {
-      return 'Please select a goods type'
+      return '请选择商品类型'
     }
 
     if (needRegion(rule.scope) && !rule.region_id) {
-      return 'Please select a region'
+      return '请选择地区'
     }
 
     if (needPlanGroup(rule.scope) && !rule.plan_group_id) {
-      return 'Please select a plan group'
+      return '请选择线路'
     }
 
     if (needPackage(rule.scope) && !rule.package_id) {
-      return 'Please select a package'
+      return '请选择套餐'
     }
 
     return ''
@@ -731,7 +624,7 @@
     try {
       await Promise.all([refreshGroups(), refreshCoupons(), fetchLookups()])
     } catch (error: any) {
-      ElMessage.error(error?.response?.data?.error || 'Failed to load coupons')
+      ElMessage.error(error?.response?.data?.error || '加载优惠券数据失败')
     }
   }
 
@@ -761,20 +654,15 @@
     params: GroupTableParams
   ): Promise<Api.Common.PaginatedResponse<CouponGroupRow>> {
     const payload = await fetchAdminCouponGroups()
-    const keyword = params.keyword.trim().toLowerCase()
     allGroups.value = (payload.items || []).map((item) =>
       normalizeGroup(item as Record<string, unknown>)
     )
-    const records = allGroups.value.filter(
-      (item) => !keyword || item.name.toLowerCase().includes(keyword)
-    )
-    const start = (params.current - 1) * params.size
 
     return {
-      records: records.slice(start, start + params.size),
+      records: allGroups.value,
       current: params.current,
       size: params.size,
-      total: records.length
+      total: allGroups.value.length
     }
   }
 
@@ -782,11 +670,8 @@
     params: CouponTableParams
   ): Promise<Api.Common.PaginatedResponse<CouponRow>> {
     const payload = await fetchAdminCoupons({
-      limit: params.size,
-      offset: (params.current - 1) * params.size,
-      q: params.keyword || undefined,
-      product_group_id: params.product_group_id || undefined,
-      active: params.active === null ? undefined : params.active === 'active'
+      limit: 200,
+      offset: 0
     })
     const records = (payload.items || []).map((item) =>
       normalizeCoupon(item as Record<string, unknown>)
@@ -798,32 +683,6 @@
       size: params.size,
       total: Number(payload.total || records.length)
     }
-  }
-
-  async function handleGroupSearch(params: { keyword: string }) {
-    Object.assign(groupSearchParams, params)
-    await refreshGroups()
-  }
-
-  async function handleGroupReset() {
-    groupSearchForm.value = { keyword: '' }
-    await resetGroupSearchParams()
-  }
-
-  async function handleCouponSearch(params: CouponTableParams) {
-    Object.assign(couponSearchParams, params)
-    await refreshCoupons()
-  }
-
-  async function handleCouponReset() {
-    couponSearchForm.value = {
-      current: 1,
-      size: 20,
-      keyword: '',
-      product_group_id: null,
-      active: null
-    }
-    await resetCouponSearchParams()
   }
 
   function scopeLabel(scope?: string) {
@@ -850,9 +709,9 @@
   }
 
   function formatPolicy(row: CouponRow) {
-    const totalText = row.total_limit < 0 ? 'unlimited' : String(row.total_limit)
-    const perUserText = row.per_user_limit < 0 ? 'unlimited' : String(row.per_user_limit)
-    return `total ${totalText} / user ${perUserText}`
+    const totalText = row.total_limit < 0 ? '不限' : String(row.total_limit)
+    const perUserText = row.per_user_limit < 0 ? '不限' : String(row.per_user_limit)
+    return `总计 ${totalText} / 每用户 ${perUserText}`
   }
 
   function formatDateTime(value?: string) {
@@ -879,13 +738,7 @@
   async function submitGroup(form: CouponGroupFormValue) {
     const name = String(form.name || '').trim()
     if (!name) {
-      return ElMessage.error('Please enter a coupon group name')
-    }
-
-    if (name.length > INPUT_LIMITS.COUPON_GROUP_NAME) {
-      return ElMessage.error(
-        `Coupon group name cannot exceed ${INPUT_LIMITS.COUPON_GROUP_NAME} characters`
-      )
+      return ElMessage.error('请输入商品组名称')
     }
 
     const rules = normalizeRules(form.rules)
@@ -911,10 +764,10 @@
       }
 
       groupDialogVisible.value = false
-      ElMessage.success('Coupon group saved')
+      ElMessage.success('商品组已保存')
       await fetchAll()
     } catch (error: any) {
-      ElMessage.error(error?.response?.data?.error || 'Failed to save coupon group')
+      ElMessage.error(error?.response?.data?.error || '保存商品组失败')
     } finally {
       groupSubmitting.value = false
     }
@@ -926,48 +779,27 @@
     }
 
     try {
-      await ElMessageBox.confirm(`Delete coupon group "${row.name || row.id}"?`, 'Confirm', {
+      await ElMessageBox.confirm(`确定删除商品组“${row.name || row.id}”吗？`, '提示', {
         type: 'warning'
       })
       await deleteAdminCouponGroup(row.id)
-      ElMessage.success('Coupon group deleted')
+      ElMessage.success('商品组已删除')
       await fetchAll()
     } catch (error: any) {
       if (error !== 'cancel' && error !== 'close') {
-        ElMessage.error(error?.response?.data?.error || 'Failed to delete coupon group')
+        ElMessage.error(error?.response?.data?.error || '删除商品组失败')
       }
     }
   }
 
   function openCouponDialog(row?: CouponRow) {
-    couponForm.value = row
-      ? { ...row }
-      : {
-          ...createDefaultCouponForm(),
-          product_group_id: couponSearchForm.value.product_group_id
-        }
+    couponForm.value = row ? { ...row } : createDefaultCouponForm()
 
     couponDialogVisible.value = true
   }
 
   async function submitCoupon(form: CouponFormValue) {
     const code = String(form.code || '').trim()
-    if (!code) {
-      return ElMessage.error('Please enter a coupon code')
-    }
-
-    if (code.length > INPUT_LIMITS.COUPON_CODE) {
-      return ElMessage.error(`Coupon code cannot exceed ${INPUT_LIMITS.COUPON_CODE} characters`)
-    }
-
-    if (!form.product_group_id) {
-      return ElMessage.error('Please select a coupon group')
-    }
-
-    if (String(form.note || '').length > INPUT_LIMITS.COUPON_NOTE) {
-      return ElMessage.error(`Note cannot exceed ${INPUT_LIMITS.COUPON_NOTE} characters`)
-    }
-
     couponSubmitting.value = true
 
     try {
@@ -989,10 +821,10 @@
       }
 
       couponDialogVisible.value = false
-      ElMessage.success('Coupon saved')
+      ElMessage.success('优惠码已保存')
       await fetchAll()
     } catch (error: any) {
-      ElMessage.error(error?.response?.data?.error || 'Failed to save coupon')
+      ElMessage.error(error?.response?.data?.error || '保存优惠码失败')
     } finally {
       couponSubmitting.value = false
     }
@@ -1004,45 +836,25 @@
     }
 
     try {
-      await ElMessageBox.confirm(`Delete coupon "${row.code || row.id}"?`, 'Confirm', {
+      await ElMessageBox.confirm(`确定删除优惠码“${row.code || row.id}”吗？`, '提示', {
         type: 'warning'
       })
       await deleteAdminCoupon(row.id)
-      ElMessage.success('Coupon deleted')
+      ElMessage.success('优惠码已删除')
       await fetchAll()
     } catch (error: any) {
       if (error !== 'cancel' && error !== 'close') {
-        ElMessage.error(error?.response?.data?.error || 'Failed to delete coupon')
+        ElMessage.error(error?.response?.data?.error || '删除优惠码失败')
       }
     }
   }
 
   function openBatchDialog() {
-    batchForm.value = {
-      ...batchForm.value,
-      product_group_id: couponSearchForm.value.product_group_id || batchForm.value.product_group_id
-    }
     batchDialogVisible.value = true
   }
 
   async function submitBatch(form: CouponBatchFormValue) {
     const prefix = String(form.prefix || '').trim()
-    if (!prefix) {
-      return ElMessage.error('Please enter a prefix')
-    }
-
-    if (prefix.length > INPUT_LIMITS.COUPON_BATCH_PREFIX) {
-      return ElMessage.error(`Prefix cannot exceed ${INPUT_LIMITS.COUPON_BATCH_PREFIX} characters`)
-    }
-
-    if (!form.product_group_id) {
-      return ElMessage.error('Please select a coupon group')
-    }
-
-    if (String(form.note || '').length > INPUT_LIMITS.COUPON_NOTE) {
-      return ElMessage.error(`Note cannot exceed ${INPUT_LIMITS.COUPON_NOTE} characters`)
-    }
-
     batchSubmitting.value = true
 
     try {
@@ -1061,10 +873,10 @@
 
       batchForm.value = { ...form }
       batchDialogVisible.value = false
-      ElMessage.success('Coupons generated')
+      ElMessage.success('优惠码已生成')
       await fetchAll()
     } catch (error: any) {
-      ElMessage.error(error?.response?.data?.error || 'Failed to generate coupons')
+      ElMessage.error(error?.response?.data?.error || '批量生成优惠码失败')
     } finally {
       batchSubmitting.value = false
     }

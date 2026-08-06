@@ -1,7 +1,7 @@
 <template>
   <SettingsPage
     title="注册与登录设置"
-    subtitle="统一管理注册入口、密码规则、验证码策略和登录保护"
+    subtitle="统一管理注册入口、密码规则与登录风控。"
     :loading="loading"
     :saving="saving"
     :can-view="canView"
@@ -9,6 +9,11 @@
     @refresh="fetchData"
     @save="save"
   >
+    <ElAlert class="settings-help" type="info" :closable="false" show-icon>
+      <template #title>关闭后前台注册入口会提示禁止注册。</template>
+      <template #default> 用户名、密码为系统必填；邮箱必填请使用“邮箱必填”开关控制。 </template>
+    </ElAlert>
+
     <ArtForm
       v-model="form"
       :items="formItems"
@@ -21,8 +26,8 @@
     >
       <template #password_rules>
         <div class="password-rules">
-          <ElCheckbox v-model="form.auth_password_require_upper">大写字母</ElCheckbox>
-          <ElCheckbox v-model="form.auth_password_require_lower">小写字母</ElCheckbox>
+          <ElCheckbox v-model="form.auth_password_require_upper">大写</ElCheckbox>
+          <ElCheckbox v-model="form.auth_password_require_lower">小写</ElCheckbox>
           <ElCheckbox v-model="form.auth_password_require_number">数字</ElCheckbox>
           <ElCheckbox v-model="form.auth_password_require_symbol">符号</ElCheckbox>
         </div>
@@ -144,11 +149,11 @@
   const fullNumberProps = (min: number, max?: number) => ({ min, max, class: 'full-width' })
 
   const formItems = computed(() => [
-    { key: 'auth_register_enabled', label: '开启注册', type: 'switch' },
+    { key: 'auth_register_enabled', label: '是否开启注册', type: 'switch' },
     { key: 'auth_register_email_required', label: '注册时邮箱必填', type: 'switch' },
     {
       key: 'auth_register_required_fields',
-      label: '注册必填字段',
+      label: '必填字段',
       type: 'checkboxgroup',
       span: 24,
       props: {
@@ -162,7 +167,7 @@
     },
     {
       key: 'auth_password_min_len',
-      label: '密码最小长度',
+      label: '最小长度',
       type: 'number',
       props: fullNumberProps(6, 64)
     },
@@ -481,6 +486,10 @@
     gap: 8px;
     align-items: center;
     min-height: 32px;
+  }
+
+  .settings-help {
+    margin-bottom: 12px;
   }
 
   .full-width {

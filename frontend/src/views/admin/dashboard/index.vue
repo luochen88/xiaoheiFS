@@ -4,7 +4,7 @@
       <div>
         <h2>运营总览</h2>
         <ElSpace wrap class="page-context">
-          <ElTag type="success" effect="light">收入口径：已确认订单</ElTag>
+          <ElTag type="success" effect="light">收入口径：已审批支付</ElTag>
           <ElTag effect="light">订单样本：{{ orders.length }}</ElTag>
           <ElTag effect="light">实例样本：{{ vpsList.length }}</ElTag>
         </ElSpace>
@@ -12,8 +12,8 @@
 
       <ElSpace wrap>
         <ElRadioGroup v-model="period" @change="handlePeriodChange">
-          <ElRadioButton label="day">近 30 天</ElRadioButton>
-          <ElRadioButton label="month">近 12 月</ElRadioButton>
+          <ElRadioButton label="day">近30天</ElRadioButton>
+          <ElRadioButton label="month">近6月</ElRadioButton>
         </ElRadioGroup>
         <ElButton type="primary" :loading="loading" @click="reloadAll">刷新</ElButton>
       </ElSpace>
@@ -60,7 +60,7 @@
           <ElCard class="metric-card" v-loading="loading">
             <div class="metric-title">待审核订单</div>
             <ElStatistic :value="overview.pending_review" />
-            <div class="metric-foot danger">需要运营优先处理</div>
+            <div class="metric-foot danger">需运营优先处理</div>
           </ElCard>
         </ElCol>
         <ElCol :xs="24" :sm="12" :lg="8" :xl="4">
@@ -74,12 +74,12 @@
           <ElCard class="metric-card" v-loading="loading">
             <div class="metric-title">7 天内到期</div>
             <ElStatistic :value="overview.expiring_soon" />
-            <div class="metric-foot warning">建议安排续费提醒</div>
+            <div class="metric-foot warning">建议发送续费提醒</div>
           </ElCard>
         </ElCol>
         <ElCol :xs="24" :sm="12" :lg="8" :xl="4">
           <ElCard class="metric-card" v-loading="loading">
-            <div class="metric-title">健康评分</div>
+            <div class="metric-title">健康度</div>
             <ElStatistic :value="healthScore" suffix="/100" />
             <div class="metric-foot" :class="healthScore < 70 ? 'danger' : 'success'">
               {{ healthComment }}
@@ -103,6 +103,15 @@
                   {{ item.level === 'high' ? '高风险' : '中风险' }}
                 </ElTag>
                 <span>{{ item.text }}</span>
+                <ElButton
+                  v-if="item.action"
+                  class="alert-action"
+                  link
+                  type="primary"
+                  @click="goToAlert(item.action)"
+                >
+                  {{ item.action.label }}
+                </ElButton>
               </div>
             </div>
           </ElCard>
@@ -280,11 +289,12 @@
               serverStatus.hostname || '-'
             }}</ElDescriptionsItem>
             <ElDescriptionsItem label="系统">{{ serverStatus.os || '-' }}</ElDescriptionsItem>
+            <ElDescriptionsItem label="平台">{{ serverStatus.platform || '-' }}</ElDescriptionsItem>
             <ElDescriptionsItem label="内核">
               {{ serverStatus.kernel_version || '-' }}
             </ElDescriptionsItem>
             <ElDescriptionsItem label="CPU">{{ cpuText }}</ElDescriptionsItem>
-            <ElDescriptionsItem label="运行时长">{{ uptimeText }}</ElDescriptionsItem>
+            <ElDescriptionsItem label="运行时间">{{ uptimeText }}</ElDescriptionsItem>
           </ElDescriptions>
         </template>
         <ElEmpty v-else description="暂无服务器状态数据" :image-size="72" />
@@ -314,7 +324,7 @@
   import ArtBarChart from '@/components/core/charts/art-bar-chart/index.vue'
   import ArtLineChart from '@/components/core/charts/art-line-chart/index.vue'
   import ArtRingChart from '@/components/core/charts/art-ring-chart/index.vue'
-  import { useAdminAuthStore } from '@/stores/adminAuth'
+  import { useAuth } from '@/hooks/core/useAuth'
   import { ElMessage } from 'element-plus'
 
   defineOptions({ name: 'DashboardOverviewPage' })
@@ -322,24 +332,6 @@
   type OrderRecord = Order
   type VpsRecord = VPSInstance
   type ApiListLike<T> = { items?: T[]; total?: number }
-
-  function hasAdminPermission(
-    grantedPermissions: string[] | undefined,
-    requiredPermissions: string | string[]
-  ) {
-    const granted = Array.isArray(grantedPermissions) ? grantedPermissions : []
-    const required = Array.isArray(requiredPermissions)
-      ? requiredPermissions
-      : [requiredPermissions]
-    return required.some((permission) =>
-      granted.some(
-        (grantedPermission) =>
-          grantedPermission === '*' ||
-          grantedPermission === permission ||
-          (grantedPermission.endsWith('*') && permission.startsWith(grantedPermission.slice(0, -1)))
-      )
-    )
-  }
 
   const fetchAdminDashboardOverview = async () => (await getAdminDashboardOverview()).data
   const fetchAdminDashboardRevenue = async (params?: Record<string, unknown>) =>
@@ -362,6 +354,12 @@
   interface AlertItem {
     level: 'high' | 'medium'
     text: string
+    action?: AlertAction
+  }
+
+  interface AlertAction {
+    label: string
+    routeName: 'OrderReview' | 'VpsPage'
   }
 
   interface StatusRow {
@@ -407,10 +405,8 @@
   const VPS_WARNING = 'VPS 明细权限不足或请求失败，到期趋势与到期实例列表暂不可用。'
   const SERVER_WARNING = '服务器状态权限不足或请求失败，健康评分仅基于业务指标计算。'
 
-  const adminAuth = useAdminAuthStore()
-  const info = computed(() => ({
-    buttons: (adminAuth.profile as { permissions?: string[] } | null)?.permissions || []
-  }))
+  const { hasAuth } = useAuth()
+  const router = useRouter()
 
   const loading = ref(false)
   const initialized = ref(false)
@@ -425,20 +421,12 @@
   const overview = reactive<DashboardOverviewModel>(createEmptyOverview())
   const serverStatus = reactive<ServerStatus>(createEmptyServerStatus())
 
-  const canView = computed(() => hasAdminPermission(info.value?.buttons, ['dashboard.overview']))
-  const canLoadRevenue = computed(() =>
-    hasAdminPermission(info.value?.buttons, ['dashboard.overview', 'dashboard.revenue'])
-  )
-  const canLoadOrders = computed(() =>
-    hasAdminPermission(info.value?.buttons, ['order.list', 'order.view'])
-  )
-  const canLoadVps = computed(() =>
-    hasAdminPermission(info.value?.buttons, ['vps.list', 'vps.view'])
-  )
-  const canLoadVpsStatus = computed(() =>
-    hasAdminPermission(info.value?.buttons, ['dashboard.overview', 'dashboard.vps_status'])
-  )
-  const canLoadServer = computed(() => hasAdminPermission(info.value?.buttons, ['server.status']))
+  const canView = computed(() => hasAuth('dashboard.overview'))
+  const canLoadRevenue = computed(() => hasAuth('dashboard.revenue') || canView.value)
+  const canLoadOrders = computed(() => hasAuth('order.list') || hasAuth('order.view'))
+  const canLoadVps = computed(() => hasAuth('vps.list') || hasAuth('vps.view'))
+  const canLoadVpsStatus = computed(() => hasAuth('dashboard.vps_status') || canView.value)
+  const canLoadServer = computed(() => hasAuth('server.status'))
 
   const hasServerStatus = computed(() => {
     return Boolean(serverStatus.hostname || serverStatus.os || serverStatus.platform)
@@ -579,23 +567,27 @@
     if (overview.pending_review >= 10) {
       items.push({
         level: 'high',
-        text: `待审核订单 ${overview.pending_review} 单，处理存在积压风险。`
+        text: `待审核订单 ${overview.pending_review} 单，处理存在积压风险。`,
+        ...(canLoadOrders.value ? { action: { label: '查看订单', routeName: 'OrderReview' } } : {})
       })
     } else if (overview.pending_review > 0) {
       items.push({
         level: 'medium',
-        text: `待审核订单 ${overview.pending_review} 单，建议尽快清理。`
+        text: `待审核订单 ${overview.pending_review} 单，建议尽快清理。`,
+        ...(canLoadOrders.value ? { action: { label: '查看订单', routeName: 'OrderReview' } } : {})
       })
     }
     if (overview.expiring_soon >= 10) {
       items.push({
         level: 'high',
-        text: `7 天内到期实例 ${overview.expiring_soon} 台，续费提醒压力较高。`
+        text: `7 天内到期实例 ${overview.expiring_soon} 台，续费提醒压力较高。`,
+        ...(canLoadVps.value ? { action: { label: '查看 VPS', routeName: 'VpsPage' } } : {})
       })
     } else if (overview.expiring_soon > 0) {
       items.push({
         level: 'medium',
-        text: `7 天内到期实例 ${overview.expiring_soon} 台，建议安排提醒。`
+        text: `7 天内到期实例 ${overview.expiring_soon} 台，建议安排提醒。`,
+        ...(canLoadVps.value ? { action: { label: '查看 VPS', routeName: 'VpsPage' } } : {})
       })
     }
     if (toPercent(serverStatus.disk_usage_percent) >= 85) {
@@ -611,6 +603,10 @@
     if (!rawVpsStatusChart.value.length) return '暂无实例状态数据'
     return `运行中 ${runningVpsCount.value} 台`
   })
+
+  function goToAlert(action: AlertAction) {
+    router.push({ name: action.routeName })
+  }
 
   const pendingOrders = computed<PendingOrderRow[]>(() => {
     return orders.value

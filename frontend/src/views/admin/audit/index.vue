@@ -3,8 +3,7 @@
     <ArtSearchBar
       v-model="searchForm"
       :items="searchItems"
-      :span="8"
-      :show-expand="false"
+      :span="6"
       @reset="handleReset"
       @search="handleSearch"
     />
@@ -51,6 +50,8 @@
 
   interface AuditTableParams extends Api.Common.CommonSearchParams {
     keyword?: string
+    status?: string
+    range?: string[]
     action?: string
     user?: string
   }
@@ -66,8 +67,12 @@
 
   type AuditSource = Record<string, unknown>
 
-  const searchForm = ref<Pick<AuditTableParams, 'keyword' | 'action' | 'user'>>({
+  type AuditSearchForm = Pick<AuditTableParams, 'keyword' | 'status' | 'range' | 'action' | 'user'>
+
+  const searchForm = ref<AuditSearchForm>({
     keyword: '',
+    status: undefined,
+    range: [],
     action: '',
     user: ''
   })
@@ -78,6 +83,24 @@
       label: '关键词',
       type: 'input',
       props: { clearable: true, placeholder: '搜索对象或详情' }
+    },
+    {
+      key: 'status',
+      label: '状态',
+      type: 'select',
+      props: { clearable: true, placeholder: '状态', options: [] }
+    },
+    {
+      key: 'range',
+      label: '日期范围',
+      type: 'daterange',
+      props: {
+        type: 'daterange',
+        clearable: true,
+        rangeSeparator: '至',
+        startPlaceholder: '开始日期',
+        endPlaceholder: '结束日期'
+      }
     },
     {
       key: 'action',
@@ -143,7 +166,7 @@
     }
   }
 
-  function handleSearch(params: Pick<AuditTableParams, 'keyword' | 'action' | 'user'>) {
+  function handleSearch(params: AuditSearchForm) {
     Object.assign(searchParams, params)
     getData()
   }

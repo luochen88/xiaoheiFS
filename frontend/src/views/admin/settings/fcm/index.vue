@@ -18,13 +18,18 @@
         :show-submit="false"
         :span="24"
         label-position="top"
-      />
+      >
+        <template #fcm_enabled>
+          <ElSwitch v-model="form.fcm_enabled" :disabled="loading || saving || !canUpdate" />
+          <span class="switch-tip">关闭后不会向管理员设备发送推送通知</span>
+        </template>
+      </ArtForm>
       <ElAlert
         type="info"
         :closable="false"
         show-icon
-        title="优先使用 HTTP v1（Project ID + Service Account JSON）"
-        description="管理员设备需先通过管理端 push-tokens 接口注册 token。"
+        title="说明"
+        description="优先使用 HTTP v1（Project ID + Service Account JSON）。管理员设备需先调用 /admin/api/v1/push-tokens 注册 token。"
       />
     </div>
   </SettingsPage>
@@ -62,7 +67,7 @@
       key: 'fcm_server_key',
       label: 'FCM Server Key',
       type: 'input',
-      props: { type: 'textarea', rows: 3, placeholder: '可选的 Legacy Server Key' }
+      props: { type: 'textarea', rows: 3, placeholder: '（可选）旧版 Legacy Server Key，建议留空' }
     },
     {
       key: 'fcm_project_id',

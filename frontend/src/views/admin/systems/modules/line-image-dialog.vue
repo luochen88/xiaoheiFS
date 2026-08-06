@@ -69,8 +69,6 @@
 </template>
 
 <script setup lang="ts">
-  import { useI18n } from 'vue-i18n'
-
   interface LineRecord {
     id: number | null
     name: string
@@ -112,7 +110,20 @@
     submitting: false
   })
   const emit = defineEmits<Emits>()
-  const { t } = useI18n()
+
+  const texts: Record<string, string> = {
+    'systemImage.lineDialog.configTitle': '线路镜像配置',
+    'systemImage.lineDialog.syncTitle': '同步系统镜像',
+    'systemImage.lineDialog.line': '线路',
+    'systemImage.lineDialog.linePlaceholder': '请选择线路',
+    'systemImage.lineDialog.enabledImages': '启用镜像',
+    'systemImage.lineDialog.enabledImagesPlaceholder': '请选择启用的系统镜像',
+    'systemImage.lineDialog.syncAlert': '同步将从自动化服务获取该线路可用的系统镜像。',
+    'systemImage.lineDialog.save': '保存配置',
+    'systemImage.lineDialog.startSync': '开始同步',
+    'common.cancel': '取消'
+  }
+  const t = (key: string) => texts[key] || key
 
   const dialogVisible = computed({
     get: () => props.visible,

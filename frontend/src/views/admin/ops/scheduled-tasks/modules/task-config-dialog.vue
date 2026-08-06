@@ -6,47 +6,30 @@
     destroy-on-close
     align-center
   >
-    <ElForm ref="formRef" :model="localForm" :rules="rules" label-width="110px">
-      <ElAlert class="dialog-alert" type="info" :closable="false">
-        <template #title>{{ task?.description || '暂无任务描述' }}</template>
-      </ElAlert>
-
-      <ElFormItem label="任务键名">
-        <ElInput :model-value="task?.key || '-'" disabled />
-      </ElFormItem>
-
+    <ElForm :model="localForm" label-width="110px">
       <ElFormItem label="启用状态" prop="enabled">
         <ElSwitch v-model="localForm.enabled" />
       </ElFormItem>
 
-      <ElFormItem label="执行策略" prop="strategy">
+      <ElFormItem label="执行策略">
         <ElSelect v-model="localForm.strategy" placeholder="请选择执行策略">
           <ElOption label="间隔执行" value="interval" />
           <ElOption label="每日执行" value="daily" />
         </ElSelect>
       </ElFormItem>
 
-      <ElFormItem v-if="localForm.strategy === 'interval'" label="执行间隔" prop="interval_sec">
-        <ElInputNumber
-          v-model="localForm.interval_sec"
-          :min="1"
-          :max="86400"
-          :step="10"
-          style="width: 100%"
-        />
-        <div class="field-tip">单位为秒，最小值为 1 秒。</div>
+      <ElFormItem v-if="localForm.strategy === 'interval'" label="执行间隔（秒）">
+        <ElInputNumber v-model="localForm.interval_sec" :min="1" :step="10" style="width: 100%" />
       </ElFormItem>
 
-      <ElFormItem v-else label="执行时间" prop="daily_at">
+      <ElFormItem v-else label="执行时间">
         <ElTimePicker
           v-model="localForm.daily_at"
           format="HH:mm"
           value-format="HH:mm"
           placeholder="请选择每日执行时间"
-          :clearable="false"
           style="width: 100%"
         />
-        <div class="field-tip">使用 24 小时制时间。</div>
       </ElFormItem>
     </ElForm>
 
@@ -61,7 +44,6 @@
 
 <script setup lang="ts">
   import type { ScheduledTaskRecord, ScheduledTaskStrategy } from '@/services/admin'
-  import type { FormInstance, FormRules } from 'element-plus'
 
   defineOptions({ name: 'TaskConfigDialog' })
 
@@ -89,8 +71,6 @@
   })
 
   const emit = defineEmits<Emits>()
-  const formRef = ref<FormInstance>()
-
   const dialogVisible = computed({
     get: () => props.visible,
     set: (value) => emit('update:visible', value)
@@ -98,50 +78,10 @@
 
   const dialogTitle = computed(() => {
     const name = String(props.task?.name || '')
-    return name ? `配置任务 · ${name}` : '配置任务'
+    return name ? `配置 ${name}` : '配置'
   })
 
   const localForm = reactive<TaskConfigFormValue>(createDefaultForm())
-
-  const rules = computed<FormRules>(() => ({
-    strategy: [{ required: true, message: '请选择执行策略', trigger: 'change' }],
-    interval_sec: [
-      {
-        validator: (_rule, value, callback) => {
-          if (localForm.strategy !== 'interval') {
-            callback()
-            return
-          }
-
-          if (!Number.isFinite(Number(value)) || Number(value) < 1) {
-            callback(new Error('请输入大于等于 1 的执行间隔'))
-            return
-          }
-
-          callback()
-        },
-        trigger: 'change'
-      }
-    ],
-    daily_at: [
-      {
-        validator: (_rule, value, callback) => {
-          if (localForm.strategy !== 'daily') {
-            callback()
-            return
-          }
-
-          if (!String(value || '').trim()) {
-            callback(new Error('请选择每日执行时间'))
-            return
-          }
-
-          callback()
-        },
-        trigger: 'change'
-      }
-    ]
-  }))
 
   watch(
     () => [props.visible, props.task] as const,
@@ -151,24 +91,16 @@
       }
 
       applyTask(props.task)
-      nextTick(() => formRef.value?.clearValidate())
     },
     { immediate: true, deep: true }
-  )
-
-  watch(
-    () => localForm.strategy,
-    () => {
-      nextTick(() => formRef.value?.clearValidate(['interval_sec', 'daily_at']))
-    }
   )
 
   function createDefaultForm(): TaskConfigFormValue {
     return {
       enabled: false,
       strategy: 'interval',
-      interval_sec: 300,
-      daily_at: '09:00'
+      interval_sec: 3600,
+      daily_at: '00:00'
     }
   }
 
@@ -176,21 +108,12 @@
     Object.assign(localForm, createDefaultForm(), {
       enabled: Boolean(task?.enabled),
       strategy: task?.strategy === 'daily' ? 'daily' : 'interval',
-      interval_sec: Number(task?.interval_sec || 300),
-      daily_at: String(task?.daily_at || '09:00')
+      interval_sec: Number(task?.interval_sec || 3600),
+      daily_at: String(task?.daily_at || '00:00')
     })
   }
 
-  async function handleSubmit() {
-    if (!formRef.value) {
-      return
-    }
-
-    const valid = await formRef.value.validate().catch(() => false)
-    if (!valid) {
-      return
-    }
-
+  function handleSubmit() {
     emit('submit', {
       enabled: localForm.enabled,
       strategy: localForm.strategy,
@@ -201,20 +124,9 @@
 </script>
 
 <style scoped lang="scss">
-  .dialog-alert {
-    margin-bottom: 18px;
-  }
-
   .dialog-footer {
     display: flex;
     gap: 12px;
     justify-content: flex-end;
-  }
-
-  .field-tip {
-    margin-top: 8px;
-    font-size: 12px;
-    line-height: 1.5;
-    color: var(--el-text-color-secondary);
   }
 </style>

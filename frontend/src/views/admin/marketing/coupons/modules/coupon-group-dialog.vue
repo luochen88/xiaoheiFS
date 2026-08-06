@@ -1,41 +1,37 @@
 <template>
   <ElDialog
     v-model="dialogVisible"
-    :title="localForm.id ? 'Edit Coupon Group' : 'Create Coupon Group'"
+    :title="localForm.id ? '编辑商品组' : '新增商品组'"
     width="980px"
     destroy-on-close
     align-center
   >
     <ElForm label-position="top">
-      <ElFormItem label="Group Name">
-        <ElInput
-          v-model.trim="localForm.name"
-          :maxlength="INPUT_LIMITS.COUPON_GROUP_NAME"
-          placeholder="Enter coupon group name"
-        />
+      <ElFormItem label="商品组名称">
+        <ElInput v-model.trim="localForm.name" placeholder="请输入商品组名称" />
       </ElFormItem>
 
       <div class="rule-header">
-        <span>Product Rules</span>
-        <ElButton type="primary" plain @click="addRule">Add Rule</ElButton>
+        <span>商品规则</span>
+        <ElButton type="primary" plain @click="addRule">新增规则</ElButton>
       </div>
 
       <div v-for="(rule, index) in localForm.rules" :key="`rule-${index}`" class="rule-card">
         <div class="rule-card-header">
-          <span>Rule {{ index + 1 }}</span>
+          <span>规则 {{ index + 1 }}</span>
           <ElButton
             link
             type="danger"
             :disabled="localForm.rules.length <= 1"
             @click="removeRule(index)"
           >
-            Remove
+            删除
           </ElButton>
         </div>
 
         <ElRow :gutter="12">
           <ElCol :xs="24" :md="8">
-            <ElFormItem label="Scope">
+            <ElFormItem label="范围">
               <ElSelect v-model="rule.scope" class="full-width">
                 <ElOption
                   v-for="item in scopeOptions"
@@ -48,7 +44,7 @@
           </ElCol>
 
           <ElCol :xs="24" :md="8">
-            <ElFormItem label="Goods Type">
+            <ElFormItem label="商品类型">
               <ElSelect
                 v-model="rule.goods_type_id"
                 clearable
@@ -67,7 +63,7 @@
           </ElCol>
 
           <ElCol :xs="24" :md="8">
-            <ElFormItem label="Region">
+            <ElFormItem label="地区">
               <ElSelect
                 v-model="rule.region_id"
                 clearable
@@ -86,7 +82,7 @@
           </ElCol>
 
           <ElCol :xs="24" :md="12">
-            <ElFormItem label="Plan Group">
+            <ElFormItem label="线路">
               <ElSelect
                 v-model="rule.plan_group_id"
                 clearable
@@ -105,7 +101,7 @@
           </ElCol>
 
           <ElCol :xs="24" :md="12">
-            <ElFormItem label="Package">
+            <ElFormItem label="套餐">
               <ElSelect
                 v-model="rule.package_id"
                 clearable
@@ -126,22 +122,22 @@
 
         <ElRow v-if="rule.scope === 'addon_config'" :gutter="12">
           <ElCol :xs="12" :md="6">
-            <ElFormItem label="Addon CPU">
+            <ElFormItem label="CPU 附加项">
               <ElSwitch v-model="rule.addon_core_enabled" />
             </ElFormItem>
           </ElCol>
           <ElCol :xs="12" :md="6">
-            <ElFormItem label="Addon Memory">
+            <ElFormItem label="内存附加项">
               <ElSwitch v-model="rule.addon_mem_enabled" />
             </ElFormItem>
           </ElCol>
           <ElCol :xs="12" :md="6">
-            <ElFormItem label="Addon Disk">
+            <ElFormItem label="磁盘附加项">
               <ElSwitch v-model="rule.addon_disk_enabled" />
             </ElFormItem>
           </ElCol>
           <ElCol :xs="12" :md="6">
-            <ElFormItem label="Addon Bandwidth">
+            <ElFormItem label="带宽附加项">
               <ElSwitch v-model="rule.addon_bw_enabled" />
             </ElFormItem>
           </ElCol>
@@ -151,16 +147,14 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <ElButton @click="dialogVisible = false">Cancel</ElButton>
-        <ElButton type="primary" :loading="submitting" @click="handleSubmit">Save</ElButton>
+        <ElButton @click="dialogVisible = false">取消</ElButton>
+        <ElButton type="primary" :loading="submitting" @click="handleSubmit">保存</ElButton>
       </div>
     </template>
   </ElDialog>
 </template>
 
 <script setup lang="ts">
-  import { INPUT_LIMITS } from '@/constants/inputLimits'
-
   defineOptions({ name: 'CouponGroupDialog' })
 
   interface CouponRuleFormValue {
@@ -210,20 +204,19 @@
   }
 
   const scopeOptions = [
-    { label: 'All Products', value: 'all' },
-    { label: 'All Addons', value: 'all_addons' },
-    { label: 'Goods Type', value: 'goods_type' },
-    { label: 'Goods Type + Region', value: 'goods_type_region' },
-    { label: 'Plan Group', value: 'plan_group' },
-    { label: 'Package', value: 'package' },
-    { label: 'Addon Config', value: 'addon_config' }
+    { label: '全部商品', value: 'all' },
+    { label: '全部附加项', value: 'all_addons' },
+    { label: '商品类型', value: 'goods_type' },
+    { label: '商品类型 + 地区', value: 'goods_type_region' },
+    { label: '线路', value: 'plan_group' },
+    { label: '套餐', value: 'package' },
+    { label: '附加项配置', value: 'addon_config' }
   ]
 
   const props = withDefaults(defineProps<Props>(), {
     goodsTypes: () => [],
     regions: () => [],
     planGroups: () => [],
-    packages: () => [],
     submitting: false
   })
   const emit = defineEmits<Emits>()

@@ -65,7 +65,7 @@
               type="danger"
               @click="handleReject(row)"
             >
-              驳回
+              拒绝
             </ElButton>
             <span v-if="row.status !== 'pending_review'" class="muted">-</span>
           </div>
@@ -73,14 +73,14 @@
       </ArtTable>
     </ElCard>
 
-    <ElDialog v-model="rejectVisible" title="驳回订单" width="460px" destroy-on-close align-center>
+    <ElDialog v-model="rejectVisible" title="拒绝订单" width="460px" destroy-on-close align-center>
       <ElForm label-position="top">
-        <ElFormItem label="驳回原因">
+        <ElFormItem label="拒绝原因">
           <ElInput
             v-model="rejectReason"
             type="textarea"
             :rows="4"
-            placeholder="请输入驳回原因"
+            placeholder="请输入拒绝原因"
             :maxlength="INPUT_LIMITS.REVIEW_REASON"
             show-word-limit
           />
@@ -90,7 +90,7 @@
         <div class="dialog-footer">
           <ElButton v-ripple @click="rejectVisible = false">取消</ElButton>
           <ElButton v-ripple type="primary" :loading="rejecting" @click="confirmReject"
-            >确认驳回</ElButton
+            >确认拒绝</ElButton
           >
         </div>
       </template>
@@ -154,7 +154,7 @@
   const quickStatusTabs = [
     { label: '待审核', value: 'pending_review' },
     { label: '已通过', value: 'approved' },
-    { label: '已驳回', value: 'rejected' }
+    { label: '已拒绝', value: 'rejected' }
   ] as const
 
   const showSearchBar = ref(true)
@@ -300,7 +300,7 @@
   function getStatusText(status?: string) {
     return (
       (
-        { pending_review: '待审核', approved: '已通过', rejected: '已驳回' } as Record<
+        { pending_review: '待审核', approved: '已通过', rejected: '已拒绝' } as Record<
           string,
           string
         >
@@ -347,7 +347,7 @@
     const orderId = Number(currentOrder.value?.id || 0)
     if (!orderId) return
     if (rejectReason.value.length > INPUT_LIMITS.REVIEW_REASON) {
-      ElMessage.error(`驳回原因长度不能超过 ${INPUT_LIMITS.REVIEW_REASON} 个字符`)
+      ElMessage.error(`拒绝原因长度不能超过 ${INPUT_LIMITS.REVIEW_REASON} 个字符`)
       return
     }
     rejecting.value = true

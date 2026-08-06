@@ -32,6 +32,7 @@
   import ProductsCtaBlock from '@/components/business/cms-blocks/products/ProductsCtaBlock.vue'
   import ProductsHeroBlock from '@/components/business/cms-blocks/products/ProductsHeroBlock.vue'
   import ProductsPricingBlock from '@/components/business/cms-blocks/products/ProductsPricingBlock.vue'
+  import { getCmsBlocks } from '@/services/user'
   import { useSiteStore } from '@/stores/site'
 
   defineOptions({ name: 'PublicProducts' })
@@ -213,6 +214,18 @@
     cta: { sort_order: 5, visible: true, content: { ...ctaContent.value } }
   }
 
+  const productIconMap: Record<string, string> = {
+    cloud: 'ri:cloud-line',
+    rocket: 'ri:rocket-2-line',
+    bolt: 'ri:flashlight-line',
+    building: 'ri:building-2-line'
+  }
+  const resolveProductIcon = (value: unknown, index: number) => {
+    const icon = String(value || '')
+    const fallback = defaultBlocks.pricing.content.products[index]?.icon || 'ri:cloud-line'
+    return icon.includes(':') ? icon : productIconMap[icon] || fallback
+  }
+
   const parseContent = (block?: CmsBlock) => {
     if (block?.content && typeof block.content === 'object') return block.content
     if (!block?.content_json) return {}
@@ -259,9 +272,9 @@
       scenarios.value = calculator.scenarios
     const pricing = merged.pricing.content
     if (Array.isArray(pricing.products) && pricing.products.length) {
-      products.value = pricing.products.map((item: any) => ({
+      products.value = pricing.products.map((item: any, index: number) => ({
         ...item,
-        icon: item.icon || 'ri:cloud-line',
+        icon: resolveProductIcon(item.icon, index),
         resources: Array.isArray(item.resources) ? item.resources : [],
         features: Array.isArray(item.features) ? item.features : []
       }))
@@ -289,7 +302,12 @@
   }
 
   onMounted(async () => {
-    await siteStore.fetchBlocks('products')
+    try {
+      const response = await getCmsBlocks({ page: 'products', lang: 'zh-CN' })
+      siteStore.blocks.products = response.data?.items || []
+    } catch {
+      siteStore.blocks.products = []
+    }
     applyBlocks((siteStore.blocks.products || []) as CmsBlock[])
   })
 </script>
