@@ -123,10 +123,6 @@
               重置密码
             </ElButton>
           </ElForm>
-
-          <div class="auth-footer">
-            <RouterLink class="text-theme" to="/login">返回登录</RouterLink>
-          </div>
         </div>
       </div>
     </main>
@@ -377,16 +373,6 @@
 
   .submit-button {
     width: 100%;
-  }
-
-  .auth-footer {
-    margin-top: 22px;
-    font-size: 14px;
-    text-align: center;
-  }
-
-  .text-theme {
-    color: var(--theme-color);
   }
 
   @media (width <= 640px) {

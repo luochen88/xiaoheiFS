@@ -1,23 +1,25 @@
 <template>
   <div class="tickets-page art-full-height">
-    <ArtSearchBar
-      v-model="searchForm"
-      :items="searchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="handleReset"
-    />
+    <div class="page-heading">
+      <div>
+        <h2>我的工单</h2>
+        <p>技术支持与问题反馈</p>
+      </div>
+      <ElButton type="primary" v-ripple @click="showCreateDialog">
+        <ArtSvgIcon icon="ri:add-line" class="button-icon" />
+        新建工单
+      </ElButton>
+    </div>
 
     <ElCard class="art-table-card">
-      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
+      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" layout="">
         <template #left>
-          <ElSpace wrap>
-            <ElButton type="primary" v-ripple @click="showCreateDialog">
-              <ArtSvgIcon icon="ri:add-line" class="button-icon" />
-              新建工单
-            </ElButton>
-          </ElSpace>
+          <ElSegmented
+            v-model="activeTab"
+            :options="tabOptions"
+            size="large"
+            @change="handleTabChange"
+          />
         </template>
       </ArtTableHeader>
 
@@ -69,9 +71,10 @@
         </template>
 
         <template #operation="{ row }">
-          <ElTooltip content="查看工单" placement="top">
-            <ArtButtonTable type="view" @click="openTicket(row)" />
-          </ElTooltip>
+          <ElButton link type="primary" @click="openTicket(row)">
+            <ArtSvgIcon icon="ri:eye-line" class="button-icon" />
+            查看
+          </ElButton>
         </template>
       </ArtTable>
     </ElCard>
@@ -139,12 +142,6 @@
               </div>
             </ElOption>
           </ElSelect>
-          <div v-if="vpsLoadError" class="resource-load-error" role="alert">
-            <span>{{ vpsLoadError }}</span>
-            <ElButton link type="primary" :loading="vpsLoading" @click="loadVpsOptions">
-              重新加载
-            </ElButton>
-          </div>
         </ElFormItem>
       </ElForm>
 
@@ -225,28 +222,15 @@
   const createDialogVisible = ref(false)
   const creating = ref(false)
   const vpsLoading = ref(false)
-  const vpsLoadError = ref('')
   const vpsList = ref<VpsTableRecord[]>([])
   const vpsQuery = ref('')
-
-  const searchForm = ref<Record<string, unknown>>({ status: 'all' })
-  const searchItems = computed(() => [
-    {
-      key: 'status',
-      label: '工单状态',
-      type: 'select',
-      props: {
-        clearable: false,
-        options: [
-          { label: '全部', value: 'all' },
-          { label: '待处理', value: 'open' },
-          { label: '等待回复', value: 'waiting_user' },
-          { label: '处理中', value: 'waiting_admin' },
-          { label: '已关闭', value: 'closed' }
-        ]
-      }
-    }
-  ])
+  const activeTab = ref('all')
+  const tabOptions = [
+    { label: '全部', value: 'all' },
+    { label: '待处理', value: 'open' },
+    { label: '处理中', value: 'waiting_admin' },
+    { label: '已关闭', value: 'closed' }
+  ]
 
   const createForm = reactive({
     subject: '',
@@ -295,8 +279,6 @@
     pagination,
     getData,
     searchParams,
-    resetSearchParams,
-    refreshData,
     refreshCreate,
     handleSizeChange,
     handleCurrentChange
@@ -395,27 +377,21 @@
       : fallback
   }
 
-  const handleSearch = (params: Record<string, unknown>): void => {
-    Object.assign(searchParams, { status: params.status || 'all' })
+  const handleTabChange = (value: string | number | boolean): void => {
+    activeTab.value = String(value)
+    Object.assign(searchParams, { status: activeTab.value })
     void getData()
-  }
-
-  const handleReset = (): void => {
-    searchForm.value = { status: 'all' }
-    void resetSearchParams()
   }
 
   const loadVpsOptions = async (): Promise<void> => {
     vpsLoading.value = true
-    vpsLoadError.value = ''
     try {
       const response = await listVps()
       const payload = response.data as
         { items?: VpsTableRecord[]; Items?: VpsTableRecord[] } | undefined
       vpsList.value = payload?.items ?? payload?.Items ?? []
     } catch (error) {
-      vpsLoadError.value = getRequestErrorMessage(error, 'VPS 列表加载失败')
-      ElMessage.error(vpsLoadError.value)
+      console.error('Failed to fetch VPS list:', error)
     } finally {
       vpsLoading.value = false
     }
@@ -502,6 +478,27 @@
 </script>
 
 <style lang="scss" scoped>
+  .page-heading {
+    display: flex;
+    flex: none;
+    gap: 16px;
+    align-items: flex-start;
+    justify-content: space-between;
+
+    h2 {
+      margin: 0;
+      font-size: 22px;
+      color: var(--art-gray-900);
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 6px 0 0;
+      font-size: 13px;
+      color: var(--art-gray-600);
+    }
+  }
+
   .button-icon {
     margin-right: 6px;
   }
@@ -553,20 +550,6 @@
     width: 100%;
   }
 
-  .resource-load-error {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 6px;
-    font-size: 12px;
-    color: var(--art-danger);
-
-    span {
-      flex: 1;
-    }
-  }
-
   .vps-option {
     display: flex;
     flex-direction: column;
@@ -598,6 +581,10 @@
   }
 
   @media (width <= 640px) {
+    .page-heading {
+      flex-direction: column;
+    }
+
     .subject-content {
       flex-direction: column;
       gap: 4px;

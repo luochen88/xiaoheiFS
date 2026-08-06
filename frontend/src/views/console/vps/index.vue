@@ -24,6 +24,10 @@
       </ElCard>
     </div>
 
+    <div class="status-tabs">
+      <ElSegmented v-model="searchForm.status" :options="statusTabs" @change="handleStatusTab" />
+    </div>
+
     <ArtSearchBar
       v-model="searchForm"
       :items="searchItems"
@@ -36,7 +40,7 @@
       <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
         <template #left>
           <ElSpace wrap>
-            <ElButton :icon="Download" @click="exportCsv">导出当前页</ElButton>
+            <ElButton :icon="Download" @click="exportCsv">导出 CSV</ElButton>
           </ElSpace>
         </template>
       </ArtTableHeader>
@@ -154,10 +158,22 @@
             ><ElIcon><Calendar /></ElIcon>{{ formatDateTime(item.expire_at) }}</span
           >
         </div>
+        <div v-if="item.destroy_in_days != null" class="mobile-destroy-warning">
+          <ElIcon><Warning /></ElIcon>
+          <span>将在 {{ item.destroy_in_days }} 天后自动删除</span>
+        </div>
         <div class="mobile-card-actions" @click.stop>
           <ElButton link type="primary" :icon="View" @click="goDetail(item)">详情</ElButton>
           <ElButton link type="primary" :icon="Monitor" @click="openPanel(item)">面板</ElButton>
           <ElButton link type="primary" :icon="VideoCamera" @click="openVnc(item)">VNC</ElButton>
+          <ElButton
+            v-if="emergencyRenewEligible(item)"
+            link
+            type="danger"
+            :icon="Calendar"
+            @click="submitEmergencyRenew(item)"
+            >紧急续费</ElButton
+          >
           <ElButton link type="primary" :icon="MoreFilled" @click="showMobileActions(item)"
             >更多</ElButton
           >
@@ -240,7 +256,7 @@
         <ElFormItem label="执行时间">
           <ElRadioGroup v-model="resizeForm.schedule_mode">
             <ElRadio value="now">立即执行</ElRadio>
-            <ElRadio value="later" :disabled="!supportsScheduledResize">指定时间</ElRadio>
+            <ElRadio value="later">指定时间</ElRadio>
           </ElRadioGroup>
         </ElFormItem>
         <ElFormItem v-if="resizeForm.schedule_mode === 'later'" label="指定时间">
@@ -551,9 +567,18 @@
     { label: '锁定', value: 'locked' },
     { label: '已到期', value: 'expired_locked' },
     { label: '开通中', value: 'provisioning' },
-    { label: '重装中', value: 'reinstalling' },
+    { label: '重装系统中', value: 'reinstalling' },
+    { label: '重装系统失败', value: 'reinstall_failed' },
     { label: '创建失败', value: 'failed' },
     { label: '删除中', value: 'deleting' }
+  ]
+  const statusTabs = [
+    { label: '全部', value: '' },
+    { label: '运行中', value: 'running' },
+    { label: '已关机', value: 'stopped' },
+    { label: '锁定', value: 'locked' },
+    { label: '已到期', value: 'expired_locked' },
+    { label: '重装中', value: 'reinstalling' }
   ]
 
   const isJsonObject = (value: unknown): value is JsonObject =>
@@ -635,7 +660,10 @@
       regionLine: line ? `${region}/${line}` : region,
       status,
       expire_at: expireAt,
-      destroy_in_days: Number(row.destroy_in_days ?? row.DestroyInDays ?? 0),
+      destroy_in_days:
+        row.destroy_in_days == null && row.DestroyInDays == null
+          ? undefined
+          : Number(row.destroy_in_days ?? row.DestroyInDays),
       last_emergency_renew_at: row.last_emergency_renew_at ?? row.LastEmergencyRenewAt ?? undefined,
       package_id: row.package_id ?? row.PackageID,
       package_name: row.package_name,
@@ -726,6 +754,7 @@
       apiFn: fetchVpsTable,
       apiParams: { current: 1, size: 10 },
       columnsFactory: () => [
+        { type: 'selection', width: 48 },
         { type: 'globalIndex', width: 62, label: '序号' },
         { prop: 'name', label: '实例', minWidth: 190, useSlot: true },
         { prop: 'regionLine', label: '地区/线路', minWidth: 140, useSlot: true },
@@ -756,6 +785,13 @@
 
   const handleSearch = (params: Partial<VpsTableParams>) => {
     Object.assign(searchParams, params)
+    getData()
+  }
+
+  const handleStatusTab = (value: string | number | boolean) => {
+    const status = String(value)
+    searchForm.value.status = status
+    Object.assign(searchParams, { status })
     getData()
   }
 
@@ -790,6 +826,30 @@
     const responseData = isJsonObject(response.data) ? response.data : {}
     return String(responseData.error ?? responseData.message ?? error.message ?? fallback)
   }
+  const getErrorStatus = (error: unknown) => {
+    if (!isJsonObject(error) || !isJsonObject(error.response)) return undefined
+    const status = Number(error.response.status)
+    return Number.isFinite(status) ? status : undefined
+  }
+  const getIdentifier = (value: unknown): Identifier | undefined =>
+    typeof value === 'string' || typeof value === 'number' ? value : undefined
+  const getOrderId = (value: unknown) => {
+    if (!isJsonObject(value)) return undefined
+    const order = isJsonObject(value.order) ? value.order : {}
+    return getIdentifier(order.id ?? order.ID ?? value.order_id ?? value.orderId ?? value.id)
+  }
+  const showOrderConflict = async (title: string, error: unknown, orderId?: Identifier) => {
+    try {
+      await ElMessageBox.confirm(getErrorText(error, title), title, {
+        type: 'warning',
+        confirmButtonText: orderId ? '去订单详情' : '去订单列表',
+        cancelButtonText: '我知道了'
+      })
+      await router.push(orderId ? `/console/orders/${orderId}` : '/console/orders')
+    } catch (action) {
+      if (action !== 'cancel' && action !== 'close') throw action
+    }
+  }
   const goDetail = (record: VpsRecord) => router.push(`/console/vps/${record.id}`)
   const goBuy = () => router.push({ name: 'PublicBuy' })
   const base = import.meta.env.VITE_API_BASE || ''
@@ -803,9 +863,10 @@
   const openVnc = (record: VpsRecord) => openExternal(record, 'vnc')
 
   const exportCsv = () => {
+    const rows = filterRows(allVps.value, searchParams)
     const lines = [
       'id,name,status,expire_at',
-      ...data.value.map((item) =>
+      ...rows.map((item) =>
         [item.id, item.name, item.status, item.expire_at]
           .map((value) => JSON.stringify(value ?? ''))
           .join(',')
@@ -823,20 +884,15 @@
   const runAction = async (
     record: VpsRecord,
     action: (id: number | string) => Promise<unknown>,
-    label: string
+    label: string,
+    successMessage: string
   ) => {
     try {
-      await ElMessageBox.confirm(
-        `确认对 ${record.name || `VPS-${record.id}`} 执行“${label}”？`,
-        label,
-        { type: 'warning' }
-      )
       await action(record.id)
-      ElMessage.success('操作已提交')
+      ElMessage.success(successMessage)
       await refreshData()
     } catch (error) {
-      if (error !== 'cancel' && error !== 'close')
-        ElMessage.error(getErrorText(error, `${label}失败`))
+      ElMessage.error(getErrorText(error, `${label}失败`))
     }
   }
 
@@ -847,12 +903,13 @@
         const result = await refreshVps(id)
         return result
       },
-      '刷新状态'
+      '刷新状态',
+      '已刷新'
     )
   }
-  const start = (record: VpsRecord) => runAction(record, startVps, '开机')
-  const shutdown = (record: VpsRecord) => runAction(record, shutdownVps, '关机')
-  const reboot = (record: VpsRecord) => runAction(record, rebootVps, '重启')
+  const start = (record: VpsRecord) => runAction(record, startVps, '开机', '已触发开机')
+  const shutdown = (record: VpsRecord) => runAction(record, shutdownVps, '关机', '已触发关机')
+  const reboot = (record: VpsRecord) => runAction(record, rebootVps, '重启', '已触发重启')
 
   const renewOpen = ref(false)
   const resizeOpen = ref(false)
@@ -975,12 +1032,6 @@
       .sort((a, b) => getPackageMonthlyPrice(a) - getPackageMonthlyPrice(b))
   })
   const resizeEnabled = computed(() => getSettingBool('resize_enabled') !== false)
-  const supportsScheduledResize = computed(
-    () =>
-      getSettingBool('resize_scheduled_enabled') === true ||
-      getSettingBool('resize_schedule_enabled') === true ||
-      getSettingBool('resize_scheduled') === true
-  )
   const normalizePackageSpec = (pkg: PackageSpecSource | null) => ({
     cpu: Number(pkg?.cores ?? pkg?.cpu ?? pkg?.CPU ?? pkg?.Cores ?? 0),
     memory_gb: Number(pkg?.memory_gb ?? pkg?.mem_gb ?? pkg?.MemoryGB ?? 0),
@@ -1049,6 +1100,10 @@
       ElMessage.success('已生成续费订单')
       renewOpen.value = false
     } catch (error) {
+      if (getErrorStatus(error) === 409) {
+        await showOrderConflict('已有待处理续费订单', error)
+        return
+      }
       ElMessage.error(getErrorText(error, '续费失败'))
     } finally {
       renewing.value = false
@@ -1099,7 +1154,10 @@
       resizeQuote.value = isJsonObject(responseObject.quote) ? responseObject.quote : responseObject
     } catch (error) {
       resizeQuote.value = null
-      resizeQuoteError.value = getErrorText(error, '升降配报价失败')
+      resizeQuoteError.value =
+        getErrorStatus(error) === 409
+          ? '已有进行中的升降配任务/订单'
+          : getErrorText(error, '升降配报价失败')
     } finally {
       resizeQuoteLoading.value = false
     }
@@ -1133,10 +1191,17 @@
       return ElMessage.warning('请选择晚于当前时间的执行时间')
     resizing.value = true
     try {
-      await createVpsResizeOrder(activeRecord.value.id, buildResizePayload())
+      const response = await createVpsResizeOrder(activeRecord.value.id, buildResizePayload())
       ElMessage.success('已生成改配订单')
       resizeOpen.value = false
+      const orderId = getOrderId(response.data)
+      if (orderId) await router.push(`/console/orders/${orderId}`)
     } catch (error) {
+      if (getErrorStatus(error) === 409) {
+        const response = isJsonObject(error) && isJsonObject(error.response) ? error.response : {}
+        await showOrderConflict('已有进行中的升降配任务/订单', error, getOrderId(response.data))
+        return
+      }
       ElMessage.error(getErrorText(error, '升降配失败'))
     } finally {
       resizing.value = false
@@ -1154,8 +1219,11 @@
       return ElMessage.warning(`退款原因长度不能超过 ${INPUT_LIMITS.REFUND_REASON} 个字符`)
     refunding.value = true
     try {
-      await requestVpsRefund(activeRecord.value.id, { reason: refundReason.value.trim() })
-      ElMessage.success('退款申请已提交')
+      const response = await requestVpsRefund(activeRecord.value.id, {
+        reason: refundReason.value.trim()
+      })
+      const orderId = getOrderId(response.data)
+      ElMessage.success(orderId ? `已提交退款申请，订单ID: ${orderId}` : '已提交退款申请')
       refundOpen.value = false
     } catch (error) {
       ElMessage.error(getErrorText(error, '提交失败'))
@@ -1180,7 +1248,7 @@
   }
   const mobileActionsOpen = ref(false)
   const mobileActionRecord = ref<VpsRecord | null>(null)
-  const mobileActions = [
+  const mobileActions = computed(() => [
     { key: 'detail', label: '详情', icon: View },
     { key: 'panel', label: '面板', icon: Monitor },
     { key: 'vnc', label: 'VNC', icon: VideoCamera },
@@ -1188,10 +1256,13 @@
     { key: 'shutdown', label: '关机', icon: Loading },
     { key: 'reboot', label: '重启', icon: RefreshRight },
     { key: 'renew', label: '续费', icon: Calendar },
+    ...(emergencyRenewEligible(mobileActionRecord.value)
+      ? [{ key: 'urgent-renew', label: '紧急续费', icon: Calendar }]
+      : []),
     { key: 'resize', label: '升降配', icon: Cpu },
     { key: 'refresh', label: '刷新', icon: Refresh },
     { key: 'refund', label: '退款', icon: Warning }
-  ]
+  ])
   const showMobileActions = (record: VpsRecord) => {
     mobileActionRecord.value = record
     mobileActionsOpen.value = true
@@ -1271,6 +1342,10 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
+  }
+
+  .status-tabs {
+    overflow-x: auto;
   }
 
   .stat-card {
@@ -1446,8 +1521,22 @@
       color: var(--art-gray-500);
     }
 
+    .mobile-destroy-warning {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      padding: 8px 10px;
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--el-color-danger);
+      background: var(--el-color-danger-light-9);
+      border: 1px solid var(--el-color-danger-light-7);
+      border-radius: 6px;
+    }
+
     .mobile-card-actions {
       display: flex;
+      flex-wrap: wrap;
       gap: 2px;
       justify-content: flex-end;
       padding-top: 10px;

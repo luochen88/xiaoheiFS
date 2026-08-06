@@ -43,8 +43,8 @@ const sortValue = (value: unknown): unknown => {
     }, {})
 }
 
-const specKey = (packageId: number, spec: CartSpec) =>
-  `${packageId}:${JSON.stringify(sortValue(spec))}`
+const specKey = (packageId: number, systemId: number | undefined, spec: CartSpec) =>
+  `${packageId}:${systemId ?? ''}:${JSON.stringify(sortValue(spec))}`
 
 const normalizeServerItem = (row: CompatibleCartItem): CartStoreItem => {
   const spec = parseSpec(row.spec ?? row.Spec ?? row.spec_json ?? row.SpecJSON)
@@ -99,7 +99,7 @@ export const useCartStore = defineStore(
     const coalesceGuestItems = () => {
       const merged = new Map<string, CartStoreItem>()
       guestItems.value.forEach((item) => {
-        const key = specKey(item.package_id, item.spec)
+        const key = specKey(item.package_id, item.system_id, item.spec)
         const current = merged.get(key)
         if (current) {
           current.qty += item.qty
@@ -128,8 +128,8 @@ export const useCartStore = defineStore(
             try {
               const matchingRemote = remoteItems.find(
                 (item) =>
-                  specKey(item.package_id, item.spec) ===
-                  specKey(guestItem.package_id, guestItem.spec)
+                  specKey(item.package_id, item.system_id, item.spec) ===
+                  specKey(guestItem.package_id, guestItem.system_id, guestItem.spec)
               )
               const createdResponse = await addCartItem(toServerPayload(guestItem))
               const created = normalizeServerItem(createdResponse.data as CompatibleCartItem)
@@ -194,8 +194,11 @@ export const useCartStore = defineStore(
         return
       }
 
-      const key = specKey(packageId, spec)
-      const current = guestItems.value.find((item) => specKey(item.package_id, item.spec) === key)
+      const systemId = Number(payload.system_id || 0) || undefined
+      const key = specKey(packageId, systemId, spec)
+      const current = guestItems.value.find(
+        (item) => specKey(item.package_id, item.system_id, item.spec) === key
+      )
       if (current) {
         current.qty += qty
         current.amount += Number(payload.amount ?? 0) * qty
@@ -205,7 +208,7 @@ export const useCartStore = defineStore(
       guestItems.value.push({
         id: createGuestId(),
         package_id: packageId,
-        system_id: payload.system_id,
+        system_id: systemId,
         spec,
         qty,
         amount: Number(payload.amount ?? 0) * qty,

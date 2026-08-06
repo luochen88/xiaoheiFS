@@ -1,9 +1,10 @@
 <template>
-  <div class="ticket-detail-page pb-5">
+  <div class="ticket-detail-page pb-5" v-loading="loading">
     <div class="page-heading">
       <div class="heading-main">
-        <ElButton circle aria-label="返回工单列表" @click="goBack">
-          <ArtSvgIcon icon="ri:arrow-left-line" />
+        <ElButton aria-label="返回工单列表" @click="goBack">
+          <ArtSvgIcon icon="ri:arrow-left-line" class="button-icon" />
+          返回
         </ElButton>
         <div>
           <div class="heading-title-row">
@@ -15,15 +16,8 @@
       </div>
     </div>
 
-    <ElSkeleton v-if="loading && !ticket" :rows="8" animated />
-    <ElResult v-else-if="!ticket" icon="warning" title="无法加载工单" sub-title="请返回列表后重试">
-      <template #extra>
-        <ElButton type="primary" @click="goBack">返回工单列表</ElButton>
-      </template>
-    </ElResult>
-
-    <div v-else class="content-grid">
-      <ElCard class="art-card-xs conversation-card" v-loading="loading">
+    <div v-if="ticket" class="content-grid">
+      <ElCard class="art-card-xs conversation-card">
         <template #header>
           <div class="card-heading">
             <div>
@@ -34,7 +28,7 @@
           </div>
         </template>
 
-        <div v-if="messages.length" ref="messageListRef" class="message-list">
+        <div v-if="messages.length" class="message-list">
           <article
             v-for="(message, index) in messages"
             :key="getMessageId(message) || index"
@@ -72,7 +66,7 @@
           <ElInput
             v-model="replyContent"
             type="textarea"
-            placeholder="请输入您的回复内容"
+            placeholder="请输入您的回复内容..."
             :rows="5"
             :maxlength="INPUT_LIMITS.TICKET_CONTENT"
             show-word-limit
@@ -97,7 +91,7 @@
         <ElAlert
           v-else
           title="工单已关闭"
-          description="如需继续咨询，请创建新的工单。"
+          description="此工单已被关闭，如需继续咨询请创建新工单"
           type="info"
           show-icon
           :closable="false"
@@ -116,7 +110,7 @@
             </div>
           </template>
           <ElDescriptions :column="1" border>
-            <ElDescriptionsItem label="工单 ID">#{{ ticketId }}</ElDescriptionsItem>
+            <ElDescriptionsItem label="工单ID">#{{ ticketId }}</ElDescriptionsItem>
             <ElDescriptionsItem label="状态">
               <ElTag :type="statusConfig.type" size="small">{{ statusConfig.label }}</ElTag>
             </ElDescriptionsItem>
@@ -134,7 +128,7 @@
             <div class="card-heading">
               <div>
                 <ArtSvgIcon icon="ri:server-line" />
-                <span>关联资源</span>
+                <span>相关资源</span>
               </div>
               <ElTag v-if="resources.length" type="info" effect="plain">{{
                 resources.length
@@ -231,7 +225,6 @@
   const ticket = ref<TicketRecord>()
   const messages = ref<MessageRecord[]>([])
   const resources = ref<ResourceRecord[]>([])
-  const messageListRef = ref<HTMLElement>()
 
   const getTicketId = (record?: TicketRecord): number | string => record?.id ?? record?.ID ?? '-'
   const getTicketSubject = (record?: TicketRecord): string =>
@@ -333,12 +326,6 @@
     return payload as TicketDetailPayload
   }
 
-  const scrollToLatestMessage = (): void => {
-    nextTick(() => {
-      messageListRef.value?.scrollTo({ top: messageListRef.value.scrollHeight })
-    })
-  }
-
   const fetchTicket = async (): Promise<void> => {
     const id = String(route.params.id ?? '')
     if (!id) return
@@ -349,11 +336,6 @@
       ticket.value = payload.ticket ?? payload.Ticket
       messages.value = payload.messages ?? payload.Messages ?? []
       resources.value = payload.resources ?? payload.Resources ?? []
-      scrollToLatestMessage()
-    } catch {
-      ticket.value = undefined
-      messages.value = []
-      resources.value = []
     } finally {
       loading.value = false
     }
@@ -364,19 +346,18 @@
   }
 
   const sendReply = async (): Promise<void> => {
-    const content = replyContent.value.trim()
-    if (!content) {
+    if (!replyContent.value.trim()) {
       ElMessage.warning('请输入回复内容')
       return
     }
-    if (content.length > INPUT_LIMITS.TICKET_CONTENT) {
+    if (replyContent.value.length > INPUT_LIMITS.TICKET_CONTENT) {
       ElMessage.error(`回复长度不能超过 ${INPUT_LIMITS.TICKET_CONTENT} 个字符`)
       return
     }
 
     replying.value = true
     try {
-      await addTicketMessage(String(route.params.id ?? ''), { content })
+      await addTicketMessage(String(route.params.id ?? ''), { content: replyContent.value })
       replyContent.value = ''
       ElMessage.success('回复成功')
       await fetchTicket()
@@ -491,9 +472,7 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
-    max-height: min(58vh, 640px);
     padding: 4px 4px 18px;
-    overflow-y: auto;
   }
 
   .message-row {

@@ -19,6 +19,7 @@
         :show-reset="false"
         :show-submit="false"
       />
+      <p class="field-help">用于生成邮件链接、API 回调等，可后续在后台修改</p>
     </div>
 
     <ElAlert
@@ -127,6 +128,13 @@
     background: var(--default-bg-color);
     border: 1px solid var(--default-border);
     border-radius: calc(var(--custom-radius) / 2 + 2px);
+  }
+
+  .field-help {
+    padding: 0 16px 16px;
+    margin: 0;
+    font-size: 12px;
+    color: var(--art-gray-600);
   }
 
   .step-info {

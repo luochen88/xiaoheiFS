@@ -1,19 +1,17 @@
 <template>
   <div class="orders-page art-full-height">
-    <ArtSearchBar
-      v-model="searchForm"
-      :items="searchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="resetSearchParams"
+    <ElSegmented
+      v-model="selectedStatus"
+      :options="statusOptions"
+      class="status-filter"
+      @change="handleStatusChange"
     />
 
     <ElCard class="art-table-card">
-      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
+      <ArtTableHeader :loading="loading" @refresh="refreshData">
         <template #left>
           <div class="table-summary">
-            <span class="table-summary__title">全部订单</span>
+            <span class="table-summary__title">我的订单</span>
             <span class="table-summary__count">共 {{ pagination.total }} 单</span>
           </div>
         </template>
@@ -46,12 +44,6 @@
 
         <template #amount="{ row }">
           <span class="amount">{{ formatMoney(row.totalAmount, row.currency) }}</span>
-        </template>
-
-        <template #discount="{ row }">
-          <span>{{
-            row.couponDiscount ? `-${formatMoney(row.couponDiscount, row.currency)}` : '-'
-          }}</span>
         </template>
 
         <template #operation="{ row }">
@@ -138,29 +130,17 @@
     status: string
     totalAmount: number
     currency: string
-    couponDiscount: number
     createdAt: string
   }
 
   const router = useRouter()
-  const searchForm = ref<Record<string, unknown>>({ status: '' })
-  const searchItems = [
-    {
-      key: 'status',
-      label: '订单状态',
-      type: 'select',
-      props: {
-        clearable: true,
-        placeholder: '全部状态',
-        options: [
-          { label: '待支付', value: 'pending_payment' },
-          { label: '待审核', value: 'pending_review' },
-          { label: '开通中', value: 'provisioning' },
-          { label: '已完成', value: 'active' },
-          { label: '已取消', value: 'canceled' }
-        ]
-      }
-    }
+  const selectedStatus = ref('')
+  const statusOptions = [
+    { label: '全部', value: '' },
+    { label: '待支付', value: 'pending_payment' },
+    { label: '待审核', value: 'pending_review' },
+    { label: '开通中', value: 'provisioning' },
+    { label: '已完成', value: 'active' }
   ]
 
   const fetchOrderPage = async ({ current, size, status }: OrderSearchParams) => {
@@ -184,19 +164,16 @@
     status: String(row.status ?? row.Status ?? ''),
     totalAmount: Number(row.total_amount ?? row.TotalAmount ?? 0),
     currency: String(row.currency ?? row.Currency ?? 'CNY'),
-    couponDiscount: Number(row.coupon_discount ?? row.CouponDiscount ?? 0),
     createdAt: String(row.created_at ?? row.CreatedAt ?? '-')
   })
 
   const {
     columns,
-    columnChecks,
     data,
     loading,
     pagination,
     getData,
     searchParams,
-    resetSearchParams,
     handleSizeChange,
     handleCurrentChange,
     refreshData,
@@ -209,7 +186,6 @@
         { prop: 'order', label: '订单', minWidth: 220, useSlot: true },
         { prop: 'status', label: '状态', width: 130, useSlot: true },
         { prop: 'amount', label: '金额', width: 140, useSlot: true },
-        { prop: 'discount', label: '优惠', width: 120, useSlot: true },
         { prop: 'createdAt', label: '创建时间', minWidth: 180 },
         {
           prop: 'operation',
@@ -223,8 +199,8 @@
     }
   })
 
-  const handleSearch = (params: Record<string, unknown>) => {
-    Object.assign(searchParams, params)
+  const handleStatusChange = (status: string | number | boolean) => {
+    searchParams.status = String(status || '') || undefined
     getData()
   }
 
@@ -268,6 +244,10 @@
 </script>
 
 <style lang="scss" scoped>
+  .status-filter {
+    margin-bottom: 12px;
+  }
+
   .table-summary {
     display: flex;
     gap: 10px;

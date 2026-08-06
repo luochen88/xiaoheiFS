@@ -3,8 +3,8 @@
     <div class="buy-page__inner">
       <header class="page-heading">
         <div>
-          <h1>选购云服务器</h1>
-          <p>按地域、线路和实际资源需求配置实例</p>
+          <h1>购买 VPS</h1>
+          <p>按需选择资源配置并自动计算价格</p>
         </div>
         <ElButton :icon="ShoppingCart" @click="router.push({ name: 'PublicCart' })">
           购物车
@@ -13,7 +13,7 @@
       </header>
 
       <ElSteps :active="stepIndex" finish-status="success" simple class="buy-steps">
-        <ElStep title="商品" />
+        <ElStep title="Goods Type" />
         <ElStep title="地域" />
         <ElStep title="线路" />
         <ElStep title="套餐" />
@@ -84,10 +84,10 @@
 
           <ElCard class="selection-card art-card-xs" shadow="never">
             <template #header><span class="section-title">选择套餐</span></template>
-            <ElEmpty v-if="packages.length === 0" description="暂无可售套餐" />
+            <ElEmpty v-if="packages.length === 0" description="暂无可用套餐" />
             <div v-else class="package-grid">
               <button
-                v-for="item in packages"
+                v-for="(item, index) in packages"
                 :key="item.id"
                 type="button"
                 class="package-option"
@@ -97,17 +97,26 @@
               >
                 <span class="package-option__heading">
                   <strong>{{ item.name }}</strong>
-                  <ElTag
-                    v-if="getCapacityLabel(item.capacity_remaining)"
-                    size="small"
-                    :type="capacityTagType(item.capacity_remaining)"
-                  >
-                    {{ getCapacityLabel(item.capacity_remaining) }}
-                  </ElTag>
+                  <span class="package-option__tags">
+                    <ElTag v-if="index === 0" size="small" type="danger">HOT</ElTag>
+                    <ElTag
+                      v-if="getCapacityLabel(item.capacity_remaining)"
+                      size="small"
+                      :type="capacityTagType(item.capacity_remaining)"
+                    >
+                      {{ getCapacityLabel(item.capacity_remaining) }}
+                    </ElTag>
+                  </span>
                 </span>
                 <span class="package-option__spec">
                   {{ item.cores || 0 }} 核 / {{ item.memory_gb || 0 }} GB /
-                  {{ item.disk_gb || 0 }} GB
+                  {{ item.disk_gb || 0 }} GB / {{ item.bandwidth_mbps || 0 }} Mbps
+                </span>
+                <span v-if="item.cpu_model" class="package-option__meta">
+                  CPU 型号：{{ item.cpu_model }}
+                </span>
+                <span v-if="item.port_num != null" class="package-option__meta">
+                  端口数：{{ item.port_num }}
                 </span>
                 <span class="package-option__price"
                   >¥{{ Number(item.monthly_price || 0).toFixed(2) }}/月</span
@@ -116,9 +125,12 @@
             </div>
           </ElCard>
 
-          <ElCard class="selection-card art-card-xs" shadow="never">
+          <ElCard v-loading="systemImagesLoading" class="selection-card art-card-xs" shadow="never">
             <template #header><span class="section-title">系统镜像</span></template>
-            <ElEmpty v-if="systemImages.length === 0" description="当前线路暂无系统镜像" />
+            <ElEmpty
+              v-if="!systemImagesLoading && systemImages.length === 0"
+              description="暂无可用系统镜像"
+            />
             <ElRadioGroup v-else v-model="form.systemId" class="system-options">
               <ElRadioButton v-for="item in systemImages" :key="item.id" :value="item.id">
                 {{ item.name }}
@@ -126,13 +138,13 @@
             </ElRadioGroup>
           </ElCard>
 
-          <ElCard v-if="hasAvailableAddons" class="selection-card art-card-xs" shadow="never">
+          <ElCard class="selection-card art-card-xs" shadow="never">
             <template #header><span class="section-title">弹性配置</span></template>
             <div class="addon-list">
               <div v-for="addon in addonFields" :key="addon.key" class="addon-row">
                 <div class="addon-row__label">
                   <span>{{ addon.label }}</span>
-                  <strong>{{ form[addon.key] }}{{ addon.unit }}</strong>
+                  <strong>{{ addonStatus(addon) }}</strong>
                 </div>
                 <ElSlider
                   v-model="form[addon.key]"
@@ -155,7 +167,7 @@
                   <ElOption
                     v-for="item in billingCycles"
                     :key="item.id"
-                    :label="item.name"
+                    :label="`${item.name}（${item.months || 0} 个月，倍率 ${item.multiplier || 0}）`"
                     :value="item.id"
                   />
                 </ElSelect>
@@ -173,6 +185,31 @@
         </div>
 
         <aside class="order-summary">
+          <ElCard class="summary-card art-card-xs" shadow="never">
+            <template #header><span class="section-title">配置摘要</span></template>
+            <ElDescriptions :column="1" border size="small">
+              <ElDescriptionsItem label="地域">{{
+                selectedRegion?.name || '-'
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="线路">{{
+                selectedPlanGroup?.name || '-'
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="套餐">{{
+                selectedPackage?.name || '-'
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="端口">{{
+                selectedPackage?.port_num ?? '-'
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="系统">{{
+                selectedSystem?.name || '-'
+              }}</ElDescriptionsItem>
+              <ElDescriptionsItem label="周期">
+                {{ selectedCycle?.name || '-' }} × {{ form.cycleQty }}
+              </ElDescriptionsItem>
+              <ElDescriptionsItem label="附加项">{{ addonSummary }}</ElDescriptionsItem>
+            </ElDescriptions>
+          </ElCard>
+
           <PriceCalculator
             :base-price="basePrice"
             :addon-price="addonPrice"
@@ -186,18 +223,17 @@
               <div class="coupon-row">
                 <ElInput v-model="form.couponCode" placeholder="可选" clearable />
                 <ElButton :loading="couponPreviewLoading" @click="applyCouponPreview"
-                  >验证</ElButton
+                  >使用</ElButton
                 >
               </div>
             </label>
 
             <div v-if="couponPreview" class="coupon-result">
-              <span>已优惠 ¥{{ Number(couponPreview.discount || 0).toFixed(2) }}</span>
-              <strong
-                >应付 ¥{{
-                  Number(couponPreview.final_total || computedOriginalTotal).toFixed(2)
-                }}</strong
-              >
+              <span>原价 ¥{{ computedOriginalTotal.toFixed(2) }}</span>
+              <span>优惠 -¥{{ Number(couponPreview.discount || 0).toFixed(2) }}</span>
+              <strong>
+                优惠后 ¥{{ Number(couponPreview.final_total || computedOriginalTotal).toFixed(2) }}
+              </strong>
             </div>
 
             <div class="checkout-actions">
@@ -232,7 +268,7 @@
   import { useAuthStore } from '@/stores/auth'
   import { useCartStore } from '@/stores/cart'
   import { useCatalogStore } from '@/stores/catalog'
-  import { createOrder, previewCoupon } from '@/services/user'
+  import { createOrder, listSystemImages, previewCoupon } from '@/services/user'
   import type {
     BillingCycle,
     CartSpec,
@@ -252,6 +288,13 @@
     planGroupId?: number
     PlanGroupID?: number
     capacityRemaining?: number
+  }
+  type AddonField = {
+    key: AddonKey
+    label: string
+    unit: string
+    rule: AddonRule
+    unitPrice: number
   }
 
   interface AddonRule {
@@ -286,6 +329,9 @@
   const creating = ref(false)
   const couponPreviewLoading = ref(false)
   const couponPreview = ref<CouponPreviewResponse | null>(null)
+  const systemImages = ref<SystemImage[]>([])
+  const systemImagesLoading = ref(false)
+  let systemImageRequestId = 0
 
   const form = reactive<BuyForm>({
     goodsTypeId: null,
@@ -327,11 +373,6 @@
       return item.active !== false && item.visible !== false && sameId(groupId, form.planGroupId)
     })
   )
-  const systemImages = computed(() =>
-    (catalog.systemImages as SystemImage[]).filter(
-      (item) => item.enabled !== false && sameId(item.plan_group_id, form.planGroupId)
-    )
-  )
   const billingCycles = computed(() =>
     (catalog.billingCycles as BillingCycle[]).filter((item) => item.active !== false)
   )
@@ -344,6 +385,12 @@
   )
   const selectedCycle = computed(() =>
     billingCycles.value.find((item) => sameId(item.id, form.billingCycleId))
+  )
+  const selectedRegion = computed(() =>
+    regions.value.find((item) => sameId(item.id, form.regionId))
+  )
+  const selectedSystem = computed(() =>
+    systemImages.value.find((item) => sameId(item.id, form.systemId))
   )
 
   const resolveAddonRule = (
@@ -377,15 +424,36 @@
     }
   })
 
-  const addonFields = computed<
-    Array<{ key: AddonKey; label: string; unit: string; rule: AddonRule }>
-  >(() => [
-    { key: 'add_cores', label: '附加 CPU', unit: ' 核', rule: addonMeta.value.core },
-    { key: 'add_mem_gb', label: '附加内存', unit: ' GB', rule: addonMeta.value.mem },
-    { key: 'add_disk_gb', label: '附加磁盘', unit: ' GB', rule: addonMeta.value.disk },
-    { key: 'add_bw_mbps', label: '附加带宽', unit: ' Mbps', rule: addonMeta.value.bandwidth }
+  const addonFields = computed<AddonField[]>(() => [
+    {
+      key: 'add_cores',
+      label: '附加 CPU',
+      unit: ' 核',
+      rule: addonMeta.value.core,
+      unitPrice: Number(selectedPlanGroup.value?.unit_core || 0)
+    },
+    {
+      key: 'add_mem_gb',
+      label: '附加内存',
+      unit: ' GB',
+      rule: addonMeta.value.mem,
+      unitPrice: Number(selectedPlanGroup.value?.unit_mem || 0)
+    },
+    {
+      key: 'add_disk_gb',
+      label: '附加磁盘',
+      unit: ' GB',
+      rule: addonMeta.value.disk,
+      unitPrice: Number(selectedPlanGroup.value?.unit_disk || 0)
+    },
+    {
+      key: 'add_bw_mbps',
+      label: '附加带宽',
+      unit: ' Mbps',
+      rule: addonMeta.value.bandwidth,
+      unitPrice: Number(selectedPlanGroup.value?.unit_bw || 0)
+    }
   ])
-  const hasAvailableAddons = computed(() => addonFields.value.some((item) => !item.rule.disabled))
   const basePrice = computed(() => Number(selectedPackage.value?.monthly_price || 0))
   const addonPrice = computed(() => {
     const group = selectedPlanGroup.value
@@ -404,6 +472,18 @@
   const computedOriginalTotal = computed(
     () => (basePrice.value + addonPrice.value) * cycleMultiplier.value * form.qty
   )
+  const addonStatus = (addon: AddonField) => {
+    if (addon.rule.disabled) return '已禁用'
+    const value = form[addon.key]
+    if (!value) return '不添加'
+    return `+${value}${addon.unit} · +¥${(value * addon.unitPrice).toFixed(2)}/月`
+  }
+  const addonSummary = computed(() => {
+    const parts = addonFields.value
+      .filter((addon) => form[addon.key] > 0)
+      .map((addon) => `+${form[addon.key]}${addon.unit.trim()}`)
+    return parts.join(' ') || '无'
+  })
   const canCheckout = computed(() => Boolean(form.packageId && form.systemId))
   const stepIndex = computed(() => {
     if (!form.goodsTypeId) return 0
@@ -447,6 +527,31 @@
     if (!isPackageDisabled(item)) form.packageId = Number(item.id)
   }
 
+  const loadSystemImages = async (planGroupId: number | null) => {
+    const requestId = ++systemImageRequestId
+    systemImages.value = []
+    form.systemId = null
+    if (!planGroupId) return
+
+    systemImagesLoading.value = true
+    try {
+      const group = planGroups.value.find((item) => sameId(item.id, planGroupId))
+      const response = await listSystemImages({
+        plan_group_id: planGroupId,
+        ...(group?.line_id ? { line_id: Number(group.line_id) } : {})
+      })
+      if (requestId !== systemImageRequestId) return
+      systemImages.value = (response.data?.items ?? []).filter((item) => item.enabled !== false)
+    } catch {
+      if (requestId === systemImageRequestId) {
+        systemImages.value = []
+        form.systemId = null
+      }
+    } finally {
+      if (requestId === systemImageRequestId) systemImagesLoading.value = false
+    }
+  }
+
   const buildOrderSpecPayload = (): CartSpec => ({
     add_cores: form.add_cores,
     add_mem_gb: form.add_mem_gb,
@@ -484,6 +589,10 @@
     const code = form.couponCode.trim()
     if (!code) {
       ElMessage.warning('请先输入优惠码')
+      return
+    }
+    if (!canCheckout.value) {
+      ElMessage.warning('请先完成套餐与系统选择')
       return
     }
     if (!auth.token) {
@@ -564,15 +673,17 @@
   )
   watch(
     () => form.planGroupId,
-    () => {
+    (planGroupId) => {
       form.packageId = null
-      form.systemId = null
+      void loadSystemImages(planGroupId)
     }
   )
   watch(
     () => form.packageId,
     () => {
-      form.systemId = null
+      if (!systemImages.value.some((item) => sameId(item.id, form.systemId))) {
+        form.systemId = Number(systemImages.value[0]?.id) || null
+      }
     }
   )
   watch(
@@ -775,9 +886,21 @@
       color: var(--art-gray-900);
     }
 
+    &__tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: flex-end;
+    }
+
     &__spec {
       font-size: 13px;
       line-height: 1.6;
+    }
+
+    &__meta {
+      color: var(--art-gray-600);
+      font-size: 12px;
     }
 
     &__price {
@@ -820,8 +943,9 @@
   }
 
   .coupon-result {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
     margin-top: 14px;
     padding: 10px 12px;
     color: var(--art-gray-700);
@@ -829,7 +953,9 @@
     border-radius: calc(var(--custom-radius) / 3 + 2px);
 
     strong {
+      grid-column: 1 / -1;
       color: var(--art-gray-900);
+      text-align: right;
     }
   }
 
@@ -839,7 +965,7 @@
     margin-top: 18px;
   }
 
-  @media (max-width: 960px) {
+  @media (width <= 960px) {
     .buy-layout {
       grid-template-columns: 1fr;
     }
@@ -849,7 +975,7 @@
     }
   }
 
-  @media (max-width: 720px) {
+  @media (width <= 720px) {
     .buy-page {
       padding: 20px 12px 36px;
     }

@@ -1,31 +1,41 @@
 <template>
   <div class="api-keys-page art-full-height">
-    <ArtSearchBar
-      v-model="searchForm"
-      :items="searchItems"
-      :span="8"
-      :show-expand="false"
-      @search="handleSearch"
-      @reset="handleReset"
-    />
+    <div class="page-heading">
+      <div>
+        <h2>API 密钥管理</h2>
+        <p>管理用于开放接口鉴权的 AKID/Key 凭证</p>
+      </div>
+      <ElButton type="primary" v-ripple @click="openCreateDialog">
+        <ArtSvgIcon icon="ri:add-line" class="button-icon" />
+        创建新密钥
+      </ElButton>
+    </div>
+
+    <ElAlert title="签名鉴权规范" type="info" :closable="false" show-icon>
+      <div class="header-list">
+        <code>X-AKID</code>
+        <code>X-Timestamp</code>
+        <code>X-Nonce</code>
+        <code>X-Signature</code>
+        <ElTag type="success" size="small">时间窗: ±300 秒</ElTag>
+      </div>
+    </ElAlert>
 
     <ElCard class="art-table-card">
-      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
+      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" layout="">
         <template #left>
-          <ElSpace wrap>
-            <ElButton type="primary" v-ripple @click="openCreateDialog">
-              <ArtSvgIcon icon="ri:key-2-line" class="button-icon" />
-              创建密钥
-            </ElButton>
-            <ElButton v-ripple @click="snippetVisible = true">
-              <ArtSvgIcon icon="ri:code-s-slash-line" class="button-icon" />
-              签名示例
-            </ElButton>
-          </ElSpace>
+          <div class="table-heading">
+            <div>
+              <ArtSvgIcon icon="ri:key-2-line" />
+              <span>密钥列表</span>
+            </div>
+            <span v-if="data.length">{{ data.length }} 个密钥</span>
+          </div>
         </template>
       </ArtTableHeader>
 
       <ArtTable
+        v-if="loading || data.length"
         :row-key="getKeyRowKey"
         :loading="loading"
         :data="data"
@@ -33,6 +43,10 @@
         :show-table-header="true"
         empty-text="暂无 API 密钥"
       >
+        <template #id="{ row }">
+          <span>{{ getKeyId(row) }}</span>
+        </template>
+
         <template #name="{ row }">
           <div class="name-cell">
             <span class="name-text">{{ getKeyName(row) }}</span>
@@ -44,7 +58,10 @@
           <div class="copy-cell">
             <code>{{ getKeyAkid(row) || '-' }}</code>
             <ElTooltip content="复制 AKID" placement="top">
-              <ArtIconButton icon="ri:file-copy-line" @click="copyText(getKeyAkid(row), 'AKID')" />
+              <ArtIconButton
+                icon="ri:file-copy-line"
+                @click="copyText(getKeyAkid(row), '已复制到剪贴板')"
+              />
             </ElTooltip>
           </div>
         </template>
@@ -56,7 +73,9 @@
         </template>
 
         <template #lastUsedAt="{ row }">
-          <span class="muted-text">{{ formatTime(getLastUsedAt(row)) }}</span>
+          <span class="muted-text">{{
+            getLastUsedAt(row) ? formatTime(getLastUsedAt(row)) : '—'
+          }}</span>
         </template>
 
         <template #operation="{ row }">
@@ -74,23 +93,33 @@
           </div>
         </template>
       </ArtTable>
+      <ElEmpty v-else description="暂无 API 密钥" :image-size="120" class="empty-state">
+        <ElButton link type="primary" @click="openCreateDialog">创建第一个密钥</ElButton>
+      </ElEmpty>
+    </ElCard>
+
+    <ElCard class="art-card-xs code-card">
+      <template #header>
+        <div class="code-heading">
+          <div>
+            <ArtSvgIcon icon="ri:code-s-slash-line" />
+            <span>签名算法示例</span>
+          </div>
+          <ElTag type="primary" effect="plain">Node.js</ElTag>
+        </div>
+      </template>
+      <pre class="code-block">{{ signSnippet }}</pre>
     </ElCard>
 
     <ElDialog
       v-model="createDialogVisible"
-      title="创建 API 密钥"
+      title="创建新 API 密钥"
       width="min(480px, 92vw)"
       align-center
       destroy-on-close
       @closed="resetCreateForm"
     >
-      <ElAlert
-        title="Key 只会在创建成功后展示一次，请立即妥善保存。"
-        type="warning"
-        show-icon
-        :closable="false"
-        class="dialog-alert"
-      />
+      <p class="dialog-description">生成新的 AKID/Key 凭证对，Key 仅在创建时展示一次</p>
       <ElForm ref="createFormRef" :model="createForm" :rules="createRules" label-position="top">
         <ElFormItem label="密钥名称" prop="name">
           <ElInput
@@ -110,7 +139,6 @@
 
     <ElDialog
       v-model="secretDialogVisible"
-      title="请保存新密钥"
       width="min(560px, 92vw)"
       align-center
       :close-on-click-modal="false"
@@ -118,8 +146,8 @@
       @closed="clearCreatedSecret"
     >
       <ElAlert
-        title="窗口关闭后将无法再次查看 Key"
-        description="请立即复制并保存到安全位置。AKID 可以稍后在列表中查看。"
+        title="重要提示"
+        description="窗口关闭后将无法再次查看 Key，请务必立即复制保存"
         type="warning"
         show-icon
         :closable="false"
@@ -127,42 +155,31 @@
       />
       <div class="secret-fields">
         <div class="secret-field">
-          <span class="field-label">AKID</span>
+          <span class="field-label">AKID (访问密钥ID)</span>
           <div class="field-row">
             <ElInput :model-value="createdSecret.akid" readonly />
-            <ElButton @click="copyText(createdSecret.akid, 'AKID')">
+            <ElButton @click="copyText(createdSecret.akid, '已复制到剪贴板')">
               <ArtSvgIcon icon="ri:file-copy-line" />
             </ElButton>
           </div>
         </div>
         <div class="secret-field secret-field-key">
-          <span class="field-label">Key</span>
+          <span class="field-label">Key (访问密钥)</span>
           <div class="field-row">
             <ElInput :model-value="createdSecret.key" readonly />
-            <ElButton type="primary" @click="copyText(createdSecret.key, 'Key')">
+            <ElButton type="primary" @click="copyText(createdSecret.key, 'Key 已复制到剪贴板')">
               <ArtSvgIcon icon="ri:file-copy-line" />
             </ElButton>
           </div>
         </div>
       </div>
       <template #footer>
-        <ElButton @click="secretDialogVisible = false">我已保存，关闭</ElButton>
-        <ElButton type="primary" @click="copyText(createdSecret.key, 'Key')">复制 Key</ElButton>
+        <ElButton @click="secretDialogVisible = false">关闭窗口</ElButton>
+        <ElButton type="primary" @click="copyText(createdSecret.key, 'Key 已复制到剪贴板')"
+          >复制 Key</ElButton
+        >
       </template>
     </ElDialog>
-
-    <ElDrawer v-model="snippetVisible" title="签名鉴权示例" size="min(680px, 92vw)">
-      <ElAlert title="请求头" type="info" :closable="false" class="snippet-alert">
-        <div class="header-list">
-          <code>X-AKID</code>
-          <code>X-Timestamp</code>
-          <code>X-Nonce</code>
-          <code>X-Signature</code>
-          <ElTag type="success" size="small">时间窗 ±300 秒</ElTag>
-        </div>
-      </ElAlert>
-      <pre class="code-block">{{ signSnippet }}</pre>
-    </ElDrawer>
   </div>
 </template>
 
@@ -188,13 +205,6 @@
     CreatedAt?: string
   }
 
-  interface ApiKeySearchParams {
-    current: number
-    size: number
-    name?: string
-    status?: string
-  }
-
   interface ApiKeyListPayload {
     items?: ApiKeyRecord[]
     Items?: ApiKeyRecord[]
@@ -203,31 +213,7 @@
   const createFormRef = ref<FormInstance>()
   const createDialogVisible = ref(false)
   const secretDialogVisible = ref(false)
-  const snippetVisible = ref(false)
   const creating = ref(false)
-
-  const searchForm = ref<Record<string, unknown>>({ name: '', status: 'all' })
-  const searchItems = computed(() => [
-    {
-      key: 'name',
-      label: '密钥名称',
-      type: 'input',
-      props: { placeholder: '搜索名称或 AKID', clearable: true }
-    },
-    {
-      key: 'status',
-      label: '状态',
-      type: 'select',
-      props: {
-        clearable: false,
-        options: [
-          { label: '全部', value: 'all' },
-          { label: '已启用', value: 'active' },
-          { label: '已停用', value: 'disabled' }
-        ]
-      }
-    }
-  ])
 
   const createForm = reactive({ name: '' })
   const createdSecret = reactive({ akid: '', key: '' })
@@ -248,60 +234,36 @@
     record.last_used_at ?? record.LastUsedAt ?? ''
   const isKeyActive = (record: ApiKeyRecord): boolean => getKeyStatus(record) === 'active'
 
-  const fetchApiKeys = async (params: ApiKeySearchParams) => {
+  const fetchApiKeys = async (_params: { current: number; size: number }) => {
+    void _params
     const response = await listUserApiKeys({ limit: 100, offset: 0 })
     const payload = response.data as ApiKeyListPayload | undefined
     const records = payload?.items ?? payload?.Items ?? []
-    const keyword = String(params.name ?? '')
-      .trim()
-      .toLocaleLowerCase()
-    const status = String(params.status ?? 'all')
-
-    const filtered = records.filter((record) => {
-      const keywordMatched =
-        !keyword ||
-        getKeyName(record).toLocaleLowerCase().includes(keyword) ||
-        getKeyAkid(record).toLocaleLowerCase().includes(keyword)
-      const statusMatched = status === 'all' || getKeyStatus(record) === status
-      return keywordMatched && statusMatched
-    })
-
-    return { records: filtered, current: 1, size: filtered.length || 1, total: filtered.length }
+    return { records, current: 1, size: records.length || 1, total: records.length }
   }
 
-  const {
-    columns,
-    columnChecks,
-    data,
-    loading,
-    getData,
-    searchParams,
-    resetSearchParams,
-    refreshData,
-    refreshCreate,
-    refreshUpdate,
-    refreshRemove
-  } = useTable({
-    core: {
-      apiFn: fetchApiKeys,
-      apiParams: { current: 1, size: 100, name: '', status: 'all' },
-      columnsFactory: () => [
-        { type: 'index', label: '序号', width: 72 },
-        { prop: 'name', label: '名称', minWidth: 190, useSlot: true },
-        { prop: 'akid', label: 'AKID', minWidth: 260, useSlot: true },
-        { prop: 'status', label: '状态', width: 110, useSlot: true },
-        { prop: 'lastUsedAt', label: '最近使用', width: 180, useSlot: true },
-        { prop: 'operation', label: '操作', width: 110, fixed: 'right', useSlot: true }
-      ]
-    }
-  })
+  const { columns, columnChecks, data, loading, refreshCreate, refreshUpdate, refreshRemove } =
+    useTable({
+      core: {
+        apiFn: fetchApiKeys,
+        apiParams: { current: 1, size: 100 },
+        columnsFactory: () => [
+          { prop: 'id', label: 'ID', width: 70, useSlot: true },
+          { prop: 'name', label: '名称', minWidth: 190, useSlot: true },
+          { prop: 'akid', label: 'AKID', minWidth: 260, useSlot: true },
+          { prop: 'status', label: '状态', width: 110, useSlot: true },
+          { prop: 'lastUsedAt', label: '最近使用', width: 180, useSlot: true },
+          { prop: 'operation', label: '操作', width: 110, fixed: 'right', useSlot: true }
+        ]
+      }
+    })
 
   const signSnippet = `import crypto from "crypto";
 
 const method = "POST";
 const path = "/api/v1/open/orders/instant/create";
 const query = "";
-const ts = new Date().toISOString();
+const ts = new Date().toISOString(); // RFC3339
 const nonce = crypto.randomUUID().replace(/-/g, "");
 const body = JSON.stringify({
   items: [{ package_id: 1, system_id: 1, qty: 1 }]
@@ -309,9 +271,9 @@ const body = JSON.stringify({
 
 const bodyHash = crypto.createHash("sha256").update(body).digest("hex");
 const canonical = [method.toUpperCase(), path, query, ts, nonce, bodyHash].join("\\n");
-const signature = crypto.createHmac("sha256", process.env.OPEN_KEY)
-  .update(canonical)
-  .digest("hex");`
+const sig = crypto.createHmac("sha256", process.env.OPEN_KEY)
+                .update(canonical)
+                .digest("hex");`
 
   const formatTime = (value: string): string => {
     if (!value) return '-'
@@ -324,19 +286,6 @@ const signature = crypto.createHmac("sha256", process.env.OPEN_KEY)
       hour: '2-digit',
       minute: '2-digit'
     })
-  }
-
-  const handleSearch = (params: Record<string, unknown>): void => {
-    Object.assign(searchParams, {
-      name: params.name ?? '',
-      status: params.status ?? 'all'
-    })
-    void getData()
-  }
-
-  const handleReset = (): void => {
-    searchForm.value = { name: '', status: 'all' }
-    void resetSearchParams()
   }
 
   const openCreateDialog = (): void => {
@@ -371,7 +320,6 @@ const signature = crypto.createHmac("sha256", process.env.OPEN_KEY)
       createdSecret.key = payload?.key ?? payload?.Key ?? payload?.secret ?? payload?.Secret ?? ''
       createDialogVisible.value = false
       secretDialogVisible.value = true
-      ElMessage.success('API 密钥创建成功')
       await refreshCreate()
     } finally {
       creating.value = false
@@ -395,38 +343,89 @@ const signature = crypto.createHmac("sha256", process.env.OPEN_KEY)
   const removeKey = async (record: ApiKeyRecord): Promise<void> => {
     const id = getKeyId(record)
     if (id === '-') return
-    const confirmed = await ElMessageBox.confirm(
-      '删除后无法恢复，确认删除该密钥吗？',
-      '删除 API 密钥',
-      {
-        confirmButtonText: '删除',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    ).catch(() => false)
+    const confirmed = await ElMessageBox.confirm('确认删除该密钥？删除后无法恢复', '', {
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }).catch(() => false)
     if (!confirmed) return
     await deleteUserApiKey(id)
     ElMessage.success('密钥已删除')
     await refreshRemove()
   }
 
-  const copyText = async (text: string, label: string): Promise<void> => {
-    if (!text) {
-      ElMessage.warning(`暂无可复制的 ${label}`)
-      return
-    }
-    try {
-      await navigator.clipboard.writeText(text)
-      ElMessage.success(`${label} 已复制`)
-    } catch {
-      ElMessage.error('复制失败，请手动选择文本复制')
-    }
+  const copyText = async (text: string, successMessage: string): Promise<void> => {
+    if (!text) return
+    await navigator.clipboard.writeText(text)
+    ElMessage.success(successMessage)
   }
 </script>
 
 <style lang="scss" scoped>
+  .page-heading {
+    display: flex;
+    flex: none;
+    gap: 16px;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 16px;
+
+    h2 {
+      margin: 0;
+      font-size: 22px;
+      color: var(--art-gray-900);
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 6px 0 0;
+      font-size: 13px;
+      color: var(--art-gray-600);
+    }
+  }
+
   .button-icon {
     margin-right: 6px;
+  }
+
+  .table-heading,
+  .code-heading {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    color: var(--art-gray-600);
+
+    > div {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-weight: 600;
+      color: var(--art-gray-900);
+
+      > :first-child {
+        color: var(--theme-color);
+      }
+    }
+  }
+
+  .table-heading > span {
+    font-size: 12px;
+  }
+
+  .code-card {
+    flex: none;
+    margin-top: 16px;
+  }
+
+  .empty-state {
+    flex: 1;
+  }
+
+  .dialog-description {
+    margin: 0 0 18px;
+    color: var(--art-gray-600);
   }
 
   .name-cell {
@@ -477,8 +476,7 @@ const signature = crypto.createHmac("sha256", process.env.OPEN_KEY)
     align-items: center;
   }
 
-  .dialog-alert,
-  .snippet-alert {
+  .dialog-alert {
     margin-bottom: 18px;
   }
 
@@ -529,6 +527,7 @@ const signature = crypto.createHmac("sha256", process.env.OPEN_KEY)
   .code-block {
     max-width: 100%;
     padding: 18px;
+    margin: 0;
     overflow: auto;
     font-family: monospace;
     font-size: 13px;
@@ -541,6 +540,10 @@ const signature = crypto.createHmac("sha256", process.env.OPEN_KEY)
   }
 
   @media (width <= 640px) {
+    .page-heading {
+      flex-direction: column;
+    }
+
     .field-row {
       grid-template-columns: 1fr;
     }

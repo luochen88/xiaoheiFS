@@ -2,9 +2,8 @@
   <div class="dashboard-page art-full-height">
     <div class="page-heading">
       <div>
-        <div class="eyebrow">控制台</div>
-        <h1>资源总览</h1>
-        <p>查看云服务器、订单、钱包和账户状态。</p>
+        <h1>控制台总览</h1>
+        <p>查看您的云服务使用情况和账户信息</p>
       </div>
       <div class="heading-actions">
         <ElButton :icon="Refresh" :loading="loading" @click="refreshDashboard">刷新</ElButton>
@@ -39,8 +38,8 @@
         <template #header>
           <div class="card-heading">
             <div>
-              <h2>近 30 天消费</h2>
-              <p>按订单创建日期统计</p>
+              <h2>消费趋势</h2>
+              <p>近30天</p>
             </div>
             <ElTag effect="plain">{{ currency }}</ElTag>
           </div>
@@ -59,7 +58,6 @@
           <div class="card-heading">
             <div>
               <h2>订单分布</h2>
-              <p>当前订单状态概览</p>
             </div>
           </div>
         </template>
@@ -78,7 +76,6 @@
         <div class="card-heading">
           <div>
             <h2>即将到期</h2>
-            <p>优先处理 7 天内到期的实例</p>
           </div>
           <ElButton link type="primary" @click="router.push('/console/vps')">
             查看全部
@@ -87,15 +84,9 @@
         </div>
       </template>
 
-      <ElEmpty v-if="!expiringList.length" description="暂无即将到期实例" />
+      <ElEmpty v-if="!expiringList.length" description="暂无即将到期的实例" />
       <div v-else class="expiring-list">
-        <button
-          v-for="item in expiringList"
-          :key="item.id ?? item.ID"
-          type="button"
-          class="expiring-row"
-          @click="router.push(`/console/vps/${item.id ?? item.ID}`)"
-        >
+        <div v-for="item in expiringList" :key="item.id ?? item.ID" class="expiring-row">
           <div class="instance-icon">
             <ElIcon><Monitor /></ElIcon>
           </div>
@@ -107,8 +98,7 @@
             {{ expireLabel(item.expire_at ?? item.ExpireAt) }}
           </ElTag>
           <time>{{ formatDateTime(item.expire_at ?? item.ExpireAt) }}</time>
-          <ElIcon class="row-arrow"><ArrowRight /></ElIcon>
-        </button>
+        </div>
       </div>
     </ElCard>
   </div>
@@ -352,7 +342,7 @@
     padding-top: 4px;
 
     h1 {
-      margin: 4px 0 6px;
+      margin: 0 0 6px;
       font-size: 24px;
       font-weight: 700;
       color: var(--art-gray-900);
@@ -363,13 +353,6 @@
       font-size: 13px;
       color: var(--art-gray-600);
     }
-  }
-
-  .eyebrow {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--theme-color);
-    letter-spacing: 0;
   }
 
   .heading-actions {
@@ -465,8 +448,7 @@
     }
   }
 
-  .metric-arrow,
-  .row-arrow {
+  .metric-arrow {
     color: var(--art-gray-400);
   }
 
@@ -509,24 +491,17 @@
 
   .expiring-row {
     display: grid;
-    grid-template-columns: 36px minmax(160px, 1fr) auto 150px 20px;
+    grid-template-columns: 36px minmax(160px, 1fr) auto 150px;
     gap: 12px;
     align-items: center;
     width: 100%;
     padding: 12px 4px;
     color: inherit;
     text-align: left;
-    cursor: pointer;
-    background: transparent;
-    border: 0;
     border-bottom: 1px solid var(--default-border);
 
     &:last-child {
       border-bottom: 0;
-    }
-
-    &:hover {
-      background: var(--art-hover-color);
     }
 
     time {
@@ -600,8 +575,7 @@
     .expiring-row {
       grid-template-columns: 36px minmax(0, 1fr) auto;
 
-      time,
-      .row-arrow {
+      time {
         display: none;
       }
     }

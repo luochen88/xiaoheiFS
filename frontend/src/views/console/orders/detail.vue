@@ -61,6 +61,12 @@
           </template>
           <ElTable :data="orderItems" row-key="id" empty-text="暂无订单明细">
             <ElTableColumn prop="id" label="ID" width="90" />
+            <ElTableColumn prop="packageId" label="套餐 ID" width="100">
+              <template #default="{ row }">{{ row.packageId || '-' }}</template>
+            </ElTableColumn>
+            <ElTableColumn prop="systemId" label="系统 ID" width="100">
+              <template #default="{ row }">{{ row.systemId || '-' }}</template>
+            </ElTableColumn>
             <ElTableColumn label="规格" min-width="300">
               <template #default="{ row }">
                 <div class="spec-cell">
@@ -153,7 +159,18 @@
           </template>
           <ElDescriptions :column="1" border size="small">
             <ElDescriptionsItem v-for="(value, key) in vpsInfo" :key="key" :label="key">
-              {{ value }}
+              <span class="copyable-value">
+                <span>{{ value }}</span>
+                <ElTooltip :content="`复制${key}`" placement="top">
+                  <ElButton
+                    circle
+                    text
+                    :icon="CopyDocument"
+                    :aria-label="`复制${key}`"
+                    @click="copyText(value, `已复制${key}`)"
+                  />
+                </ElTooltip>
+              </span>
             </ElDescriptionsItem>
           </ElDescriptions>
         </ElCard>
@@ -183,7 +200,11 @@
         </ElFormItem>
 
         <template v-if="paymentForm.method === 'approval'">
-          <ElFormItem label="付款金额" prop="amount">
+          <ElFormItem
+            label="付款金额"
+            prop="amount"
+            :rules="[{ required: true, message: '请输入金额', trigger: 'blur' }]"
+          >
             <ElInputNumber
               v-model="paymentForm.amount"
               :min="0"
@@ -216,7 +237,7 @@
             :prop="field.key"
             :rules="
               field.required
-                ? [{ required: true, message: `请填写${field.label}`, trigger: 'blur' }]
+                ? [{ required: true, message: `请输入${field.label}`, trigger: 'blur' }]
                 : []
             "
           >
@@ -255,6 +276,13 @@
             />
           </ElFormItem>
         </template>
+
+        <ElAlert
+          v-if="paymentForm.method === 'balance' && selectedProvider?.balance != null"
+          :title="`钱包余额：${formatMoney(Number(selectedProvider.balance), order?.currency)}`"
+          type="info"
+          :closable="false"
+        />
 
         <ElAlert
           v-if="selectedInstructions"
@@ -341,6 +369,7 @@
   interface OrderItemView {
     id: number | string
     packageId?: number
+    systemId?: number
     qty: number
     amount: number
     status: string
@@ -426,7 +455,9 @@
     (catalog.packages as Package[]).find((item) => String(item.id) === String(packageId))
 
   const formatSpec = (spec: CompatibleRecord, row: CompatibleRecord) => {
-    if (String(row.action ?? row.Action ?? '') === 'resize') return '实例改配'
+    if (String(row.action ?? row.Action ?? '') === 'resize') {
+      return `套餐 ID ${spec.current_package_id || '-'} → ${spec.target_package_id || '-'}`
+    }
     const pkg = findPackage(Number(row.package_id ?? row.PackageID ?? 0))
     const cpu = Number(pkg?.cores || 0) + Number(spec.add_cores || 0)
     const memory = Number(pkg?.memory_gb || 0) + Number(spec.add_mem_gb || 0)
@@ -439,15 +470,30 @@
     if (String(row.action ?? row.Action ?? '') !== 'resize') {
       return spec.duration_months ? [`购买时长：${spec.duration_months} 个月`] : []
     }
-    const current = `原配置：CPU ${Number(spec.current_cpu || 0)} 核 / 内存 ${Number(spec.current_mem_gb || 0)} GB / 磁盘 ${Number(spec.current_disk_gb || 0)} GB / 带宽 ${Number(spec.current_bw_mbps || 0)} Mbps`
-    const target = `新配置：CPU ${Number(spec.target_cpu || 0)} 核 / 内存 ${Number(spec.target_mem_gb || 0)} GB / 磁盘 ${Number(spec.target_disk_gb || 0)} GB / 带宽 ${Number(spec.target_bw_mbps || 0)} Mbps`
+    const currentCpu = Number(spec.current_cpu || 0)
+    const currentMem = Number(spec.current_mem_gb || 0)
+    const currentDisk = Number(spec.current_disk_gb || 0)
+    const currentBandwidth = Number(spec.current_bw_mbps || 0)
+    const targetCpu = Number(spec.target_cpu || 0)
+    const targetMem = Number(spec.target_mem_gb || 0)
+    const targetDisk = Number(spec.target_disk_gb || 0)
+    const targetBandwidth = Number(spec.target_bw_mbps || 0)
+    const delta = (target: number, current: number) => {
+      const value = target - current
+      return value > 0 ? `+${value}` : String(value)
+    }
+    const packageChange = `套餐 ID：${spec.current_package_id || '-'} → ${spec.target_package_id || '-'}`
+    const current = `原配置：CPU ${currentCpu} 核 / 内存 ${currentMem} GB / 磁盘 ${currentDisk} GB / 带宽 ${currentBandwidth} Mbps`
+    const target = `新配置：CPU ${targetCpu} 核 / 内存 ${targetMem} GB / 磁盘 ${targetDisk} GB / 带宽 ${targetBandwidth} Mbps`
+    const resourceDelta = `资源差量：CPU ${delta(targetCpu, currentCpu)} 核 / 内存 ${delta(targetMem, currentMem)} GB / 磁盘 ${delta(targetDisk, currentDisk)} GB / 带宽 ${delta(targetBandwidth, currentBandwidth)} Mbps`
+    const monthly = `月费：${formatMoney(Number(spec.current_monthly || 0), order.value?.currency)} → ${formatMoney(Number(spec.target_monthly || 0), order.value?.currency)}`
     const settlement =
       Number(spec.charge_amount || 0) > 0
         ? `补差价：${formatMoney(Number(spec.charge_amount), order.value?.currency)}`
         : Number(spec.refund_amount || 0) > 0
           ? `退款：${formatMoney(Number(spec.refund_amount), order.value?.currency)}${spec.refund_to_wallet ? '（退回钱包）' : ''}`
           : '无额外结算'
-    return [current, target, settlement]
+    return [packageChange, current, target, resourceDelta, monthly, settlement]
   }
 
   const normalizeItem = (item: OrderItem & CompatibleRecord): OrderItemView => {
@@ -455,6 +501,7 @@
     return {
       id: item.id ?? item.ID ?? '',
       packageId: Number(item.package_id ?? item.PackageID ?? 0) || undefined,
+      systemId: Number(item.system_id ?? item.SystemID ?? 0) || undefined,
       qty: Number(item.qty ?? item.Qty ?? 0),
       amount: Number(item.amount ?? item.Amount ?? 0),
       status: String(item.status ?? item.Status ?? ''),
@@ -749,17 +796,32 @@
     }
     return null
   })
+  const copyText = async (text: string, successMessage: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const textarea = document.createElement('textarea')
+        textarea.value = text
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        const copied = document.execCommand('copy')
+        document.body.removeChild(textarea)
+        if (!copied) throw new Error('copy failed')
+      }
+      ElMessage.success(successMessage)
+    } catch {
+      ElMessage.error('复制失败，请手动复制')
+    }
+  }
   const copyVpsInfo = async () => {
     if (!vpsInfo.value) return
     const text = Object.entries(vpsInfo.value)
       .map(([key, value]) => `${key}: ${value}`)
       .join('\n')
-    try {
-      await navigator.clipboard.writeText(text)
-      ElMessage.success('已复制 VPS 信息')
-    } catch {
-      ElMessage.error('当前环境不支持复制，请手动复制')
-    }
+    await copyText(text, '已复制 VPS 信息')
   }
 
   const startSse = () => {
@@ -842,9 +904,6 @@
       providers.value = (providerResponse.data?.items ?? []).filter(
         (item) => item.enabled !== false && item.order_enabled !== false
       )
-      if (!providers.value.some((item) => item.key === 'approval')) {
-        providers.value.unshift({ key: 'approval', name: '人工审核' })
-      }
       paymentForm.method = providers.value[0]?.key || ''
       if (!catalog.packages.length) await catalog.fetchCatalog()
       await fetchDetail()
@@ -967,6 +1026,13 @@
   .action-list {
     display: grid;
     gap: 10px;
+  }
+
+  .copyable-value {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
   }
 
   .event-timeline {

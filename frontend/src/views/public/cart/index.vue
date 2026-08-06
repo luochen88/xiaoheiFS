@@ -11,50 +11,32 @@
         </ElButton>
       </header>
 
-      <ArtSearchBar
-        v-model="searchForm"
-        :items="searchItems"
-        :span="8"
-        :show-expand="false"
-        @search="handleSearch"
-        @reset="resetSearchParams"
-      />
-
       <div class="cart-layout">
         <ElCard class="cart-table-card art-table-card">
-          <ArtTableHeader
-            v-model:columns="columnChecks"
-            :loading="loading || cart.merging"
-            @refresh="refreshData"
-          >
+          <ArtTableHeader :loading="loading || cart.merging" @refresh="refreshData">
             <template #left>
               <div class="table-heading">
                 <span>购物车明细</span>
                 <ElTag v-if="cart.isGuest" type="info" size="small">游客购物车</ElTag>
               </div>
             </template>
-            <template #right>
-              <ElTooltip content="清空购物车" placement="top">
-                <ElButton
-                  circle
-                  :icon="Delete"
-                  :disabled="data.length === 0"
-                  aria-label="清空购物车"
-                  @click="clearAllItems"
-                />
-              </ElTooltip>
-            </template>
           </ArtTableHeader>
 
+          <div v-if="!loading && !cart.merging && data.length === 0" class="cart-empty">
+            <ElEmpty description="购物车是空的">
+              <p>添加商品到购物车开始下单</p>
+              <ElButton type="primary" @click="router.push({ name: 'PublicBuy' })">
+                立即选购
+              </ElButton>
+            </ElEmpty>
+          </div>
+
           <ArtTable
+            v-else
             row-key="id"
             :loading="loading || cart.merging"
             :data="data"
             :columns="columns"
-            :pagination="pagination"
-            empty-text="购物车还是空的"
-            @pagination:size-change="handleSizeChange"
-            @pagination:current-change="handleCurrentChange"
           >
             <template #product="{ row }">
               <div class="product-cell">
@@ -74,7 +56,7 @@
               <ElInputNumber
                 :model-value="row.qty"
                 :min="1"
-                :max="10"
+                :max="99"
                 size="small"
                 @change="(value) => updateQuantity(row, Number(value || 1))"
               />
@@ -141,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-  import { Delete, ShoppingBag } from '@element-plus/icons-vue'
+  import { ShoppingBag } from '@element-plus/icons-vue'
   import { useTable } from '@/hooks/core/useTable'
   import { useAuthStore } from '@/stores/auth'
   import { useCartStore, type CartStoreItem } from '@/stores/cart'
@@ -150,12 +132,6 @@
   import type { CouponPreviewResponse, Package, SystemImage } from '@/services/types'
 
   defineOptions({ name: 'PublicCart' })
-
-  interface CartSearchParams {
-    current: number
-    size: number
-    keyword?: string
-  }
 
   interface CartRow extends CartStoreItem {
     packageName: string
@@ -171,16 +147,6 @@
   const couponCode = ref('')
   const couponLoading = ref(false)
   const couponPreview = ref<CouponPreviewResponse | null>(null)
-  const searchForm = ref<Record<string, unknown>>({ keyword: '' })
-  const searchItems = [
-    {
-      key: 'keyword',
-      label: '商品',
-      type: 'input',
-      props: { clearable: true, placeholder: '搜索套餐或系统' }
-    }
-  ]
-
   const findPackage = (packageId: number) =>
     (catalog.packages as Package[]).find((item) => String(item.id) === String(packageId))
   const findSystem = (systemId?: number) =>
@@ -206,42 +172,21 @@
     specification: formatSpecification(item)
   })
 
-  const fetchCartRows = async ({ current, size, keyword }: CartSearchParams) => {
+  const fetchCartRows = async () => {
     await cart.fetchCart()
-    const normalizedKeyword = String(keyword || '')
-      .trim()
-      .toLowerCase()
-    const rows = cart.items.map(enrichItem).filter((item) => {
-      if (!normalizedKeyword) return true
-      return `${item.packageName} ${item.systemName} ${item.specification}`
-        .toLowerCase()
-        .includes(normalizedKeyword)
-    })
-    const start = (current - 1) * size
+    const rows = cart.items.map(enrichItem)
     return {
-      records: rows.slice(start, start + size),
-      current,
-      size,
+      records: rows,
+      current: 1,
+      size: Math.max(1, rows.length),
       total: rows.length
     }
   }
 
-  const {
-    columns,
-    columnChecks,
-    data,
-    loading,
-    pagination,
-    getData,
-    searchParams,
-    resetSearchParams,
-    handleSizeChange,
-    handleCurrentChange,
-    refreshData
-  } = useTable<typeof fetchCartRows>({
+  const { columns, data, loading, refreshData } = useTable<typeof fetchCartRows>({
     core: {
       apiFn: fetchCartRows,
-      apiParams: { current: 1, size: 10, keyword: undefined },
+      apiParams: { current: 1, size: 100 },
       columnsFactory: () => [
         { prop: 'product', label: '商品', minWidth: 220, useSlot: true },
         { prop: 'specification', label: '配置', minWidth: 320, useSlot: true },
@@ -272,11 +217,6 @@
       minimumFractionDigits: 2
     }).format(Number(amount || 0))
 
-  const handleSearch = (params: Record<string, unknown>) => {
-    Object.assign(searchParams, params)
-    getData()
-  }
-
   const updateQuantity = async (row: CartRow, qty: number) => {
     await cart.updateItem(row.id, { spec: row.spec, qty })
     couponPreview.value = null
@@ -285,8 +225,8 @@
 
   const removeItem = async (row: CartRow) => {
     try {
-      await ElMessageBox.confirm(`确认移除“${row.packageName}”吗？`, '移除商品', {
-        confirmButtonText: '移除',
+      await ElMessageBox.confirm('确定要移除这个商品吗？', '提示', {
+        confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
       })
@@ -295,21 +235,6 @@
       await refreshData()
     } catch (error) {
       if (error !== 'cancel' && error !== 'close') ElMessage.error('移除商品失败')
-    }
-  }
-
-  const clearAllItems = async () => {
-    try {
-      await ElMessageBox.confirm('确认清空购物车中的全部商品吗？', '清空购物车', {
-        confirmButtonText: '清空',
-        cancelButtonText: '取消',
-        type: 'warning'
-      })
-      await cart.clearAll()
-      couponPreview.value = null
-      await refreshData()
-    } catch (error) {
-      if (error !== 'cancel' && error !== 'close') ElMessage.error('清空购物车失败')
     }
   }
 
@@ -420,6 +345,15 @@
     margin-top: 0;
   }
 
+  .cart-empty {
+    min-height: 430px;
+
+    p {
+      margin: -8px 0 16px;
+      color: var(--art-gray-600);
+    }
+  }
+
   .table-heading {
     display: flex;
     gap: 8px;
@@ -522,7 +456,7 @@
     margin-top: 14px;
   }
 
-  @media (max-width: 960px) {
+  @media (width <= 960px) {
     .cart-layout {
       grid-template-columns: 1fr;
     }
@@ -532,7 +466,7 @@
     }
   }
 
-  @media (max-width: 640px) {
+  @media (width <= 640px) {
     .cart-page {
       padding: 20px 12px 36px;
     }

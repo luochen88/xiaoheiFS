@@ -39,11 +39,7 @@
               </ElInput>
             </ElFormItem>
 
-            <ElFormItem
-              v-if="showEmailField"
-              :label="verifyChannel === 'email' ? '邮箱' : '邮箱（选填）'"
-              prop="email"
-            >
+            <ElFormItem v-if="showEmailField" label="邮箱" prop="email">
               <ElInput
                 v-model="form.email"
                 type="email"
@@ -144,19 +140,11 @@
               </div>
             </ElFormItem>
 
-            <ElFormItem prop="agreement" class="agreement-item">
-              <ElCheckbox v-model="form.agreement">
-                我同意<span class="text-theme">《服务条款》</span>和
-                <span class="text-theme">《隐私政策》</span>
-              </ElCheckbox>
-            </ElFormItem>
-
             <ElButton
               class="submit-button"
               type="primary"
               size="large"
               :loading="loading"
-              :disabled="!settings.register_enabled"
               @click="handleSubmit"
               v-ripple
             >
@@ -220,8 +208,7 @@
     phone: '',
     password: '',
     captcha_code: '',
-    verify_code: '',
-    agreement: false
+    verify_code: ''
   })
 
   const settings = reactive({
@@ -273,7 +260,7 @@
   )
   const isRequired = (field: string) => requiredSet.value.has(field.toLowerCase())
   const showField = (field: string) => isRequired(field) || field === 'qq'
-  const showEmailField = computed(() => verifyChannel.value === 'email' || isRequired('email'))
+  const showEmailField = computed(() => verifyChannel.value === 'email')
   const showPhoneField = computed(() => verifyChannel.value === 'sms' || isRequired('phone'))
   const canSendCode = computed(() =>
     verifyChannel.value === 'email'
@@ -296,7 +283,6 @@
         required:
           verifyChannel.value === 'email' &&
           (settings.register_email_required || isRequired('email')),
-        type: 'email',
         message: '请输入邮箱',
         trigger: 'blur'
       }
@@ -325,13 +311,7 @@
     verify_code:
       verifyChannels.value.length > 0
         ? [{ required: true, message: '请输入验证码', trigger: 'blur' }]
-        : [],
-    agreement: [
-      {
-        validator: () => (form.agreement ? Promise.resolve() : Promise.reject('请同意隐私协议')),
-        trigger: 'change'
-      }
-    ]
+        : []
   }))
 
   const resetGeeTestResult = () => {
@@ -507,13 +487,13 @@
   }
 
   const handleSubmit = async () => {
-    if (!formRef.value) return
-    const valid = await formRef.value.validate().catch(() => false)
-    if (!valid) return
     if (!settings.register_enabled) {
       ElMessage.warning('当前已关闭注册')
       return
     }
+    if (!formRef.value) return
+    const valid = await formRef.value.validate().catch(() => false)
+    if (!valid) return
     if (
       settings.register_captcha_enabled &&
       settings.captcha_provider === 'geetest' &&
@@ -637,10 +617,6 @@
 
   .verify-code-row .el-button {
     flex: 0 0 auto;
-  }
-
-  .agreement-item {
-    margin-bottom: 14px;
   }
 
   .text-theme {

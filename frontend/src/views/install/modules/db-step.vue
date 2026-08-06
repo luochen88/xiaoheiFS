@@ -15,6 +15,10 @@
       class="database-types"
       @change="wiz.touchDB"
     />
+    <div class="database-option-notes">
+      <p><strong>SQLite</strong><span>内置数据库，零配置</span></p>
+      <p><strong>MySQL</strong><span>外部数据库服务器</span></p>
+    </div>
 
     <div class="form-section">
       <ArtForm
@@ -35,6 +39,9 @@
         :show-reset="false"
         :show-submit="false"
       />
+      <p v-if="wiz.dbType === 'sqlite'" class="field-help">
+        相对路径默认以服务运行目录为基准，建议放在 ./data/ 下
+      </p>
     </div>
 
     <div v-if="wiz.dbType === 'mysql'" class="dsn-preview">
@@ -241,12 +248,38 @@
     width: 100%;
   }
 
+  .database-option-notes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .database-option-notes p {
+    display: flex;
+    gap: 8px;
+    margin: 0;
+    font-size: 12px;
+    color: var(--art-gray-600);
+  }
+
+  .database-option-notes strong {
+    color: var(--art-gray-800);
+  }
+
   .form-section {
     margin-top: 18px;
     overflow: hidden;
     background: var(--default-bg-color);
     border: 1px solid var(--default-border);
     border-radius: calc(var(--custom-radius) / 2 + 2px);
+  }
+
+  .field-help {
+    padding: 0 16px 16px;
+    margin: 0;
+    font-size: 12px;
+    color: var(--art-gray-600);
   }
 
   .dsn-preview {
@@ -286,6 +319,11 @@
   }
 
   @media (width <= 640px) {
+    .database-option-notes p {
+      flex-direction: column;
+      gap: 2px;
+    }
+
     .step-actions {
       display: grid;
       grid-template-columns: 1fr;

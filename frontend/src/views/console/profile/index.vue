@@ -2,14 +2,10 @@
   <div class="profile-page pb-5">
     <div class="page-heading">
       <div>
-        <h2>账户设置</h2>
-        <p>管理基本资料、登录安全和控制台偏好</p>
+        <h2>个人资料</h2>
+        <p>管理您的账户信息和偏好设置</p>
       </div>
       <ElSpace wrap>
-        <ElButton :loading="refreshing" v-ripple @click="refreshAll">
-          <ArtSvgIcon icon="ri:refresh-line" class="button-icon" />
-          刷新
-        </ElButton>
         <ElButton type="primary" v-ripple @click="openProtectedFlow('edit')">
           <ArtSvgIcon icon="ri:edit-line" class="button-icon" />
           编辑资料
@@ -35,7 +31,6 @@
               <ElTag type="primary" effect="plain">{{ profileRole }}</ElTag>
               <ElTag :type="realnameTag.type" effect="light">{{ realnameTag.label }}</ElTag>
             </div>
-            <p>{{ profileBio || '尚未填写个人简介' }}</p>
           </div>
         </div>
         <div class="summary-metrics">
@@ -71,7 +66,12 @@
           </ElDescriptionsItem>
           <ElDescriptionsItem label="QQ">{{ profileQq || '-' }}</ElDescriptionsItem>
           <ElDescriptionsItem label="用户组">
-            <ElTag type="primary" effect="plain" size="small">
+            <ElTag
+              :type="tierColor ? undefined : 'primary'"
+              :color="tierColor || undefined"
+              effect="plain"
+              size="small"
+            >
               <ArtSvgIcon v-if="tierIcon" :icon="tierIcon" class="tier-icon" />
               {{ tierName || '-' }}
             </ElTag>
@@ -109,9 +109,6 @@
                 <h3>基本资料</h3>
                 <p>用户名变更在启用 2FA 后需要动态验证码。</p>
               </div>
-              <ElButton v-if="!profileEditing" @click="openProtectedFlow('edit')"
-                >开始编辑</ElButton
-              >
             </div>
             <ElForm
               ref="profileFormRef"
@@ -125,35 +122,19 @@
                     v-model.trim="profileForm.username"
                     :disabled="!profileEditing"
                     :maxlength="INPUT_LIMITS.USERNAME"
+                    placeholder="请输入用户名"
                     show-word-limit
                   />
                 </ElFormItem>
-                <ElFormItem label="QQ" prop="qq">
+                <ElFormItem label="QQ号码" prop="qq">
                   <ElInput
                     v-model.trim="profileForm.qq"
                     :disabled="!profileEditing"
                     :maxlength="INPUT_LIMITS.QQ"
+                    placeholder="请输入QQ号码"
                   />
                 </ElFormItem>
               </div>
-              <ElFormItem label="头像 URL" prop="avatar_url">
-                <ElInput
-                  v-model.trim="profileForm.avatar_url"
-                  :disabled="!profileEditing"
-                  :maxlength="INPUT_LIMITS.URL"
-                  placeholder="https://example.com/avatar.png"
-                />
-              </ElFormItem>
-              <ElFormItem label="个人简介" prop="bio">
-                <ElInput
-                  v-model="profileForm.bio"
-                  :disabled="!profileEditing"
-                  type="textarea"
-                  :rows="4"
-                  :maxlength="INPUT_LIMITS.BIO"
-                  show-word-limit
-                />
-              </ElFormItem>
               <div v-if="profileEditing" class="form-actions">
                 <ElButton @click="cancelProfileEdit">取消</ElButton>
                 <ElButton type="primary" :loading="savingProfile" @click="saveProfile"
@@ -278,56 +259,6 @@
                 <ElButton @click="openProtectedFlow('phone')">
                   {{ securityContacts.phone_bound ? '更新' : '绑定' }}
                 </ElButton>
-              </div>
-            </div>
-          </ElTabPane>
-
-          <ElTabPane label="偏好设置" name="preferences">
-            <div class="tab-heading">
-              <div>
-                <h3>控制台偏好</h3>
-                <p>设置会保存在当前浏览器并即时生效。</p>
-              </div>
-            </div>
-            <div class="preference-list">
-              <div class="preference-item">
-                <div>
-                  <strong>外观主题</strong>
-                  <p>选择亮色、暗色或跟随系统。</p>
-                </div>
-                <ElSegmented
-                  v-model="themePreference"
-                  :options="themeOptions"
-                  @change="changeTheme"
-                />
-              </div>
-              <div class="preference-item">
-                <div>
-                  <strong>工作台标签</strong>
-                  <p>在顶部保留已打开页面的标签。</p>
-                </div>
-                <ElSwitch v-model="workTabPreference" />
-              </div>
-              <div class="preference-item">
-                <div>
-                  <strong>面包屑导航</strong>
-                  <p>在页面顶部显示当前位置。</p>
-                </div>
-                <ElSwitch v-model="crumbPreference" />
-              </div>
-              <div class="preference-item">
-                <div>
-                  <strong>水印</strong>
-                  <p>在控制台背景显示系统水印。</p>
-                </div>
-                <ElSwitch v-model="watermarkPreference" />
-              </div>
-              <div class="preference-item">
-                <div>
-                  <strong>卡片边框</strong>
-                  <p>在边框模式和阴影模式之间切换。</p>
-                </div>
-                <ElSwitch v-model="borderPreference" />
               </div>
             </div>
           </ElTabPane>
@@ -500,9 +431,6 @@
 <script setup lang="ts">
   import type { FormInstance, FormRules, TagProps } from 'element-plus'
   import QrcodeVue from 'qrcode.vue'
-  import { SystemThemeEnum } from '@/enums/appEnum'
-  import { useTheme } from '@/hooks/core/useTheme'
-  import { useSettingStore } from '@/store/modules/setting'
   import { useAuthStore } from '@/stores/auth'
   import {
     changeMyPassword,
@@ -535,12 +463,13 @@
     ticket: string
   }
 
+  interface RequestError {
+    response?: { data?: { error?: unknown } }
+  }
+
   const auth = useAuthStore()
-  const settingStore = useSettingStore()
-  const { switchThemeStyles } = useTheme()
   const profile = computed<Record<string, unknown> | null>(() => auth.profile)
   const activeTab = ref('profile')
-  const refreshing = ref(false)
   const profileEditing = ref(false)
   const passwordAuthorized = ref(false)
   const savingProfile = ref(false)
@@ -550,7 +479,7 @@
 
   const wallet = reactive({ balance: 0, currency: 'CNY' })
   const realname = ref<Record<string, unknown>>({})
-  const tier = reactive({ name: '', icon: '', expireAt: '' })
+  const tier = reactive({ name: '', color: '', icon: '', expireAt: '' })
   const securityContacts = reactive({
     email_bound: false,
     phone_bound: false,
@@ -558,7 +487,7 @@
     phone_masked: ''
   })
 
-  const profileForm = reactive({ username: '', qq: '', avatar_url: '', bio: '' })
+  const profileForm = reactive({ username: '', qq: '' })
   const passwordForm = reactive({
     current_password: '',
     new_password: '',
@@ -656,7 +585,6 @@
   const profileRole = computed(() => getProfileField('role', 'Role') || 'user')
   const profileStatus = computed(() => getProfileField('status', 'Status'))
   const profileQq = computed(() => getProfileField('qq', 'QQ'))
-  const profileBio = computed(() => getProfileField('bio', 'intro', 'Bio', 'Intro'))
   const profileCreatedAt = computed(() => getProfileField('created_at', 'createdAt', 'CreatedAt'))
   const avatarSource = computed(() => {
     const explicit = getProfileField('avatar_url', 'avatar', 'AvatarURL', 'Avatar')
@@ -671,6 +599,7 @@
     return `${prefix}${Number(wallet.balance || 0).toFixed(2)}`
   })
   const tierName = computed(() => tier.name)
+  const tierColor = computed(() => tier.color)
   const tierExpireAt = computed(() => tier.expireAt)
   const tierIcon = computed(() => {
     const icons: Record<string, string> = {
@@ -703,13 +632,8 @@
     if (!value) return '-'
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    const pad = (part: number): string => String(part).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
   }
 
   const unwrapRecord = (value: unknown): Record<string, unknown> => {
@@ -720,12 +644,16 @@
     return record
   }
 
+  const getRequestErrorMessage = (error: unknown, fallback: string): string => {
+    if (!error || typeof error !== 'object') return fallback
+    const message = (error as RequestError).response?.data?.error
+    return typeof message === 'string' && message.trim() ? message : fallback
+  }
+
   const fillProfileForm = (): void => {
     Object.assign(profileForm, {
       username: profileName.value === '用户' ? '' : profileName.value,
-      qq: profileQq.value,
-      avatar_url: getProfileField('avatar_url', 'avatar', 'AvatarURL', 'Avatar'),
-      bio: profileBio.value
+      qq: profileQq.value
     })
   }
 
@@ -793,19 +721,15 @@
     if (tierResult.status === 'fulfilled') {
       const payload = unwrapRecord(tierResult.value.data)
       tier.name = String(payload.group_name ?? payload.GroupName ?? '')
+      tier.color = String(payload.group_color ?? payload.GroupColor ?? '')
       tier.icon = String(payload.group_icon ?? payload.GroupIcon ?? '')
       tier.expireAt = String(payload.expire_at ?? payload.ExpireAt ?? '')
     }
   }
 
-  const refreshAll = async (): Promise<void> => {
-    refreshing.value = true
-    try {
-      await Promise.allSettled([auth.fetchMe(), fetchExtras(), fetchTwoFAStatus(), fetchContacts()])
-      fillProfileForm()
-    } finally {
-      refreshing.value = false
-    }
+  const initializeProfile = async (): Promise<void> => {
+    await Promise.allSettled([auth.fetchMe(), fetchExtras(), fetchTwoFAStatus(), fetchContacts()])
+    fillProfileForm()
   }
 
   const startProfileEdit = (): void => {
@@ -827,7 +751,7 @@
     if (!valid) return
     const usernameChanged = profileForm.username.trim() !== profileName.value
     if (twoFAEnabled.value && usernameChanged && !otpPattern.test(securityForm.profile_totp)) {
-      ElMessage.warning('修改用户名需要 6 位 2FA 验证码')
+      ElMessage.warning('已启用2FA，修改账号需输入6位验证码')
       return
     }
 
@@ -836,8 +760,6 @@
       await auth.updateProfile({
         username: profileForm.username.trim(),
         qq: profileForm.qq.trim(),
-        avatar_url: profileForm.avatar_url.trim(),
-        bio: profileForm.bio,
         totp_code: twoFAEnabled.value && usernameChanged ? securityForm.profile_totp : undefined
       })
       ElMessage.success('资料已更新')
@@ -874,7 +796,7 @@
     const valid = await passwordFormRef.value.validate().catch(() => false)
     if (!valid) return
     if (twoFAEnabled.value && !otpPattern.test(passwordForm.totp_code)) {
-      ElMessage.warning('修改密码需要 6 位 2FA 验证码')
+      ElMessage.warning('已启用2FA，修改密码需输入6位验证码')
       return
     }
 
@@ -961,13 +883,13 @@
 
   const precheckTitle = computed(() => {
     const titles: Record<ProtectedTarget, string> = {
-      edit: '验证后编辑资料',
-      password: '验证后修改密码',
-      twofa: '验证后重新绑定 2FA',
-      email: '验证后绑定邮箱',
-      phone: '验证后绑定手机'
+      edit: '验证 2FA 后编辑资料',
+      password: '验证 2FA 后修改密码',
+      twofa: '验证 2FA 后进入设置',
+      email: '验证 2FA 后绑定邮箱',
+      phone: '验证 2FA 后绑定手机'
     }
-    return precheckTarget.value ? titles[precheckTarget.value] : '验证 2FA'
+    return precheckTarget.value ? titles[precheckTarget.value] : '验证 2FA 后进入设置'
   })
 
   const resetPrecheck = (): void => {
@@ -1006,12 +928,13 @@
       precheckVisible.value = false
       precheckTarget.value = undefined
       precheckCode.value = ''
+      ElMessage.success('2FA 验证通过')
       if (target === 'edit') startProfileEdit()
       else if (target === 'password') authorizePasswordChange()
       else if (target === 'twofa') await openSecurityDialog('twofa', { keepCurrentCode: true })
       else await openSecurityDialog(target, { keepTicket: true })
-    } catch {
-      ElMessage.error('2FA 校验失败')
+    } catch (error) {
+      ElMessage.error(getRequestErrorMessage(error, '2FA 校验失败'))
     } finally {
       precheckLoading.value = false
     }
@@ -1043,7 +966,14 @@
         ElMessage.error('未获取到有效的 2FA 绑定信息')
         return
       }
-      ElMessage.success('绑定二维码已生成')
+      ElMessage.success('已生成，请使用验证器添加后输入验证码确认')
+    } catch (error) {
+      const message = getRequestErrorMessage(error, '生成失败')
+      if (message.toLocaleLowerCase().includes('unauthorized')) {
+        ElMessage.error(twoFAEnabled.value ? '当前 2FA 验证码错误' : '登录密码错误')
+      } else {
+        ElMessage.error(message)
+      }
     } finally {
       securityLoading.setup = false
     }
@@ -1055,8 +985,15 @@
     try {
       await confirmTwoFA({ code: securityForm.twofa_code.trim() })
       await Promise.allSettled([fetchTwoFAStatus(), auth.fetchMe()])
-      ElMessage.success('2FA 已启用')
+      ElMessage.success('2FA 已开启')
       securityDialogVisible.value = false
+    } catch (error) {
+      const message = getRequestErrorMessage(error, '确认失败')
+      if (message.toLocaleLowerCase().includes('unauthorized')) {
+        ElMessage.error('验证码错误，请检查验证器时间后重试')
+      } else {
+        ElMessage.error(message)
+      }
     } finally {
       securityLoading.confirm = false
     }
@@ -1125,6 +1062,7 @@
         await sendMyEmailBindCode(payload)
         emailCodeSent.value = true
         startCooldown('email')
+        ElMessage.success('邮箱验证码已发送')
       } finally {
         securityLoading.emailSend = false
       }
@@ -1134,11 +1072,11 @@
         await sendMyPhoneBindCode(payload)
         phoneCodeSent.value = true
         startCooldown('phone')
+        ElMessage.success('短信验证码已发送')
       } finally {
         securityLoading.phoneSend = false
       }
     }
-    ElMessage.success('验证码已发送')
   }
 
   const confirmContactBind = async (): Promise<void> => {
@@ -1196,40 +1134,8 @@
     stopCooldown('phone')
   })
 
-  const themeOptions = [
-    { label: '亮色', value: SystemThemeEnum.LIGHT },
-    { label: '暗色', value: SystemThemeEnum.DARK },
-    { label: '跟随系统', value: SystemThemeEnum.AUTO }
-  ]
-  const themePreference = ref<SystemThemeEnum>(settingStore.systemThemeMode)
-  const changeTheme = (value: string | number | boolean): void => {
-    const theme = value as SystemThemeEnum
-    themePreference.value = theme
-    switchThemeStyles(theme)
-  }
-  const workTabPreference = computed({
-    get: () => settingStore.showWorkTab,
-    set: (value: boolean) => settingStore.setWorkTab(value)
-  })
-  const crumbPreference = computed({
-    get: () => settingStore.showCrumbs,
-    set: (value: boolean) => {
-      if (settingStore.showCrumbs !== value) settingStore.setCrumbs()
-    }
-  })
-  const watermarkPreference = computed({
-    get: () => settingStore.watermarkVisible,
-    set: (value: boolean) => settingStore.setWatermarkVisible(value)
-  })
-  const borderPreference = computed({
-    get: () => settingStore.boxBorderMode,
-    set: (value: boolean) => {
-      if (settingStore.boxBorderMode !== value) settingStore.setBorderMode()
-    }
-  })
-
   onMounted(() => {
-    void refreshAll()
+    void initializeProfile()
   })
 
   onBeforeUnmount(() => {
@@ -1441,13 +1347,7 @@
   }
 
   .security-list,
-  .preference-list {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .security-item,
-  .preference-item {
+  .security-item {
     display: flex;
     gap: 14px;
     align-items: center;
@@ -1492,24 +1392,6 @@
       color: var(--art-gray-600);
       text-overflow: ellipsis;
       white-space: nowrap;
-    }
-  }
-
-  .preference-item {
-    justify-content: space-between;
-
-    > div {
-      min-width: 0;
-    }
-
-    strong {
-      color: var(--art-gray-900);
-    }
-
-    p {
-      margin: 4px 0 0;
-      font-size: 12px;
-      color: var(--art-gray-600);
     }
   }
 
@@ -1625,13 +1507,9 @@
       border-left: 0;
     }
 
-    .security-item,
-    .preference-item {
-      align-items: flex-start;
-    }
-
     .security-item {
       flex-wrap: wrap;
+      align-items: flex-start;
 
       .security-copy {
         min-width: calc(100% - 56px);
@@ -1640,10 +1518,6 @@
       > .el-button {
         width: 100%;
       }
-    }
-
-    .preference-item {
-      flex-direction: column;
     }
 
     .twofa-auth-row,

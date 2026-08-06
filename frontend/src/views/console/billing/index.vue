@@ -6,7 +6,6 @@
         <div>
           <span>当前余额</span>
           <strong>{{ formatMoney(wallet.balance, wallet.currency) }}</strong>
-          <small>更新时间：{{ formatTime(wallet.updatedAt) }}</small>
         </div>
       </div>
       <div class="balance-actions">
@@ -34,92 +33,68 @@
         <strong>{{ formatMoney(monthStats.withdraw, wallet.currency) }}</strong>
       </ElCard>
       <ElCard class="stat-card art-card-xs" shadow="never">
-        <span>待处理</span>
+        <span>待审核</span>
         <strong>{{ monthStats.pending }}</strong>
       </ElCard>
       <ElCard class="stat-card art-card-xs" shadow="never">
-        <span>本月交易</span>
+        <span>总交易</span>
         <strong>{{ monthStats.total }}</strong>
       </ElCard>
     </div>
 
-    <ElTabs v-model="activeTab" class="billing-tabs">
-      <ElTabPane label="钱包订单" name="orders">
-        <ArtSearchBar
-          v-model="searchForm"
-          :items="searchItems"
-          :span="8"
-          :show-expand="false"
-          @search="handleSearch"
-          @reset="resetSearchParams"
-        />
+    <div class="billing-filters">
+      <label>
+        <span>状态</span>
+        <ElSegmented v-model="selectedStatus" :options="statusOptions" @change="applyFilters" />
+      </label>
+      <label>
+        <span>类型</span>
+        <ElSegmented v-model="selectedType" :options="typeOptions" @change="applyFilters" />
+      </label>
+    </div>
 
-        <ElCard class="billing-table-card art-table-card">
-          <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshAll">
-            <template #left><span class="table-title">钱包订单</span></template>
-          </ArtTableHeader>
-          <ArtTable
-            row-key="id"
-            :loading="loading"
-            :data="data"
-            :columns="columns"
-            :pagination="pagination"
-            empty-text="暂无钱包订单"
-            @pagination:size-change="handleSizeChange"
-            @pagination:current-change="handleCurrentChange"
-          >
-            <template #type="{ row }">
-              <span class="type-cell">
-                <ArtSvgIcon :icon="typeIcon(row.type)" />
-                {{ typeLabel(row.type) }}
-              </span>
-            </template>
-            <template #amount="{ row }">
-              <strong :class="['amount', { 'amount--income': row.type === 'recharge' }]">
-                {{ row.type === 'recharge' ? '+' : '-'
-                }}{{ formatMoney(row.amount, row.currency || wallet.currency) }}
-              </strong>
-            </template>
-            <template #status="{ row }">
-              <ElTag :type="statusTagType(row)">{{ statusLabel(row) }}</ElTag>
-            </template>
-            <template #operation="{ row }">
-              <div v-if="canContinuePay(row) || canCancel(row)" class="table-actions">
-                <ElButton v-if="canContinuePay(row)" link type="primary" @click="continuePay(row)"
-                  >继续支付</ElButton
-                >
-                <ElButton v-if="canCancel(row)" link type="danger" @click="cancelPendingOrder(row)"
-                  >取消</ElButton
-                >
-              </div>
-              <span v-else>-</span>
-            </template>
-          </ArtTable>
-        </ElCard>
-      </ElTabPane>
-
-      <ElTabPane label="资金流水" name="transactions">
-        <ElCard class="transaction-card art-card-xs" shadow="never">
-          <ElTable
-            :data="transactions"
-            :loading="overviewLoading"
-            row-key="id"
-            empty-text="暂无资金流水"
-          >
-            <ElTableColumn label="类型" width="120">
-              <template #default="{ row }">{{ typeLabel(row.type) }}</template>
-            </ElTableColumn>
-            <ElTableColumn label="金额" width="160" align="right">
-              <template #default="{ row }">{{ formatMoney(row.amount, wallet.currency) }}</template>
-            </ElTableColumn>
-            <ElTableColumn prop="note" label="备注" min-width="220" show-overflow-tooltip />
-            <ElTableColumn label="时间" min-width="180">
-              <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
-            </ElTableColumn>
-          </ElTable>
-        </ElCard>
-      </ElTabPane>
-    </ElTabs>
+    <ElCard class="billing-table-card art-table-card">
+      <ArtTableHeader :loading="loading" @refresh="refreshAll">
+        <template #left><span class="table-title">钱包订单</span></template>
+      </ArtTableHeader>
+      <ArtTable
+        row-key="id"
+        :loading="loading"
+        :data="data"
+        :columns="columns"
+        :pagination="pagination"
+        empty-text="暂无钱包订单"
+        @pagination:size-change="handleSizeChange"
+        @pagination:current-change="handleCurrentChange"
+      >
+        <template #type="{ row }">
+          <span class="type-cell">
+            <ArtSvgIcon :icon="typeIcon(row.type)" />
+            {{ typeLabel(row.type) }}
+          </span>
+        </template>
+        <template #amount="{ row }">
+          <strong :class="['amount', { 'amount--income': row.type === 'recharge' }]">
+            {{ row.type === 'recharge' ? '+' : '-'
+            }}{{ formatMoney(row.amount, row.currency || wallet.currency) }}
+          </strong>
+        </template>
+        <template #status="{ row }">
+          <ElTag :type="statusTagType(row)">{{ statusLabel(row) }}</ElTag>
+        </template>
+        <template #operation="{ row }">
+          <div v-if="canContinuePay(row) || canCancel(row)" class="table-actions">
+            <ElButton v-if="canContinuePay(row)" link type="primary" @click="continuePay(row)"
+              >继续支付</ElButton
+            >
+            <ElButton v-if="canCancel(row)" link type="danger" @click="cancelPendingOrder(row)"
+              >取消</ElButton
+            >
+          </div>
+          <span v-else>-</span>
+        </template>
+      </ArtTable>
+    </ElCard>
 
     <ElDialog
       v-model="rechargeDialogVisible"
@@ -127,7 +102,7 @@
       width="min(460px, calc(100vw - 24px))"
       @closed="resetRechargeForm"
     >
-      <ElAlert title="充值订单将按所选支付方式处理" type="info" show-icon :closable="false" />
+      <ElAlert title="充值订单审核通过后到账" type="info" show-icon :closable="false" />
       <ElForm ref="rechargeFormRef" :model="recharge" label-position="top" class="dialog-form">
         <ElFormItem
           label="支付方式"
@@ -178,7 +153,11 @@
       width="min(460px, calc(100vw - 24px))"
       @closed="resetWithdrawForm"
     >
-      <ElAlert title="提现申请将进入人工审核流程" type="warning" show-icon :closable="false" />
+      <ElAlert title="提现订单审核通过后打款" type="warning" show-icon :closable="false" />
+      <div class="available-balance">
+        <span>可用余额</span>
+        <strong>{{ formatMoney(wallet.balance, wallet.currency) }}</strong>
+      </div>
       <ElForm ref="withdrawFormRef" :model="withdraw" label-position="top" class="dialog-form">
         <ElFormItem
           label="提现金额"
@@ -228,10 +207,9 @@
     getWallet,
     listPaymentProviders,
     listWalletOrders,
-    listWalletTransactions,
     payWalletOrder
   } from '@/services/user'
-  import type { PaymentProvider, WalletOrder, WalletTransaction } from '@/services/types'
+  import type { PaymentProvider, WalletOrder } from '@/services/types'
   import { normalizeWallet } from '@/utils/wallet'
 
   defineOptions({ name: 'ConsoleBilling' })
@@ -239,7 +217,6 @@
   interface WalletModel {
     balance: number
     currency: string
-    updatedAt?: string
   }
 
   interface WalletOrderRow {
@@ -253,14 +230,6 @@
     createdAt: string
   }
 
-  interface TransactionRow {
-    id: number | string
-    type: string
-    amount: number
-    note: string
-    createdAt: string
-  }
-
   interface WalletSearchParams {
     current: number
     size: number
@@ -270,7 +239,6 @@
 
   type CompatibleRecord = Record<string, any>
 
-  const activeTab = ref('orders')
   const overviewLoading = ref(false)
   const submitting = ref(false)
   const rechargeDialogVisible = ref(false)
@@ -278,45 +246,26 @@
   const rechargeFormRef = ref<FormInstance>()
   const withdrawFormRef = ref<FormInstance>()
   const rechargeMethods = ref<PaymentProvider[]>([])
-  const transactions = ref<TransactionRow[]>([])
-  const wallet = ref<WalletModel>({ balance: 0, currency: 'CNY', updatedAt: '' })
+  const overviewOrders = ref<WalletOrderRow[]>([])
+  const wallet = ref<WalletModel>({ balance: 0, currency: 'CNY' })
   const recharge = reactive<{ method: string; amount: number | null; note: string }>({
     method: 'approval',
-    amount: 100,
+    amount: null,
     note: ''
   })
   const withdraw = reactive<{ amount: number | null; note: string }>({ amount: null, note: '' })
-  const searchForm = ref<Record<string, unknown>>({ status: '', type: '' })
-  const searchItems = [
-    {
-      key: 'status',
-      label: '状态',
-      type: 'select',
-      props: {
-        clearable: true,
-        placeholder: '全部状态',
-        options: [
-          { label: '待处理', value: 'pending_review' },
-          { label: '已通过', value: 'approved' },
-          { label: '已拒绝', value: 'rejected' },
-          { label: '已取消', value: 'canceled' }
-        ]
-      }
-    },
-    {
-      key: 'type',
-      label: '类型',
-      type: 'select',
-      props: {
-        clearable: true,
-        placeholder: '全部类型',
-        options: [
-          { label: '充值', value: 'recharge' },
-          { label: '提现', value: 'withdraw' },
-          { label: '退款', value: 'refund' }
-        ]
-      }
-    }
+  const selectedStatus = ref('')
+  const selectedType = ref('')
+  const statusOptions = [
+    { label: '全部', value: '' },
+    { label: '待处理', value: 'pending_review' },
+    { label: '已通过', value: 'approved' },
+    { label: '已拒绝', value: 'rejected' }
+  ]
+  const typeOptions = [
+    { label: '全部', value: '' },
+    { label: '充值', value: 'recharge' },
+    { label: '提现', value: 'withdraw' }
   ]
 
   const normalizeOrder = (item: WalletOrder & CompatibleRecord): WalletOrderRow => ({
@@ -334,45 +283,41 @@
     createdAt: String(item.created_at ?? item.CreatedAt ?? '')
   })
 
-  const normalizeTransaction = (item: WalletTransaction & CompatibleRecord): TransactionRow => ({
-    id: item.id ?? item.ID ?? '',
-    type: String(item.type ?? item.Type ?? '')
-      .trim()
-      .toLowerCase(),
-    amount: Number(item.amount ?? item.Amount ?? 0),
-    note: String(item.note ?? item.Note ?? ''),
-    createdAt: String(item.created_at ?? item.CreatedAt ?? '')
-  })
-
   const fetchWalletOrderPage = async ({ current, size, status, type }: WalletSearchParams) => {
     const response = await listWalletOrders({
-      limit: size,
-      offset: (current - 1) * size,
-      ...(status ? { status } : {}),
-      ...(type ? { type } : {})
+      limit: 100,
+      offset: 0
     })
-    const records = (response.data?.items ?? []).map((item) =>
+    const orders = (response.data?.items ?? []).map((item) =>
       normalizeOrder(item as WalletOrder & CompatibleRecord)
     )
-    return { records, current, size, total: response.data?.total ?? records.length }
+    overviewOrders.value = orders
+    const filtered = orders.filter(
+      (item) => (!status || item.status === status) && (!type || item.type === type)
+    )
+    const start = (current - 1) * size
+    return {
+      records: filtered.slice(start, start + size),
+      current,
+      size,
+      total: filtered.length
+    }
   }
 
   const {
     columns,
-    columnChecks,
     data,
     loading,
     pagination,
     getData,
     searchParams,
-    resetSearchParams,
     handleSizeChange,
     handleCurrentChange,
     refreshData
   } = useTable<typeof fetchWalletOrderPage>({
     core: {
       apiFn: fetchWalletOrderPage,
-      apiParams: { current: 1, size: 100, status: undefined, type: undefined },
+      apiParams: { current: 1, size: 10, status: undefined, type: undefined },
       columnsFactory: () => [
         { prop: 'type', label: '类型', width: 120, useSlot: true },
         { prop: 'amount', label: '金额', width: 150, align: 'right', useSlot: true },
@@ -393,7 +338,7 @@
 
   const monthStats = computed(() => {
     const now = new Date()
-    const monthOrders = data.value.filter((item) => {
+    const monthOrders = overviewOrders.value.filter((item) => {
       const date = new Date(item.createdAt)
       return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
     })
@@ -404,9 +349,10 @@
       withdraw: monthOrders
         .filter((item) => item.type === 'withdraw' && item.status === 'approved')
         .reduce((sum, item) => sum + item.amount, 0),
-      pending: monthOrders.filter((item) => ['pending', 'pending_review'].includes(item.status))
-        .length,
-      total: monthOrders.length
+      pending: overviewOrders.value.filter((item) =>
+        ['pending', 'pending_review'].includes(item.status)
+      ).length,
+      total: overviewOrders.value.length
     }
   })
 
@@ -419,11 +365,6 @@
     } catch {
       return `${currency || 'CNY'} ${Number(amount || 0).toFixed(2)}`
     }
-  }
-  const formatTime = (value?: string) => {
-    if (!value) return '-'
-    const date = new Date(value)
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN')
   }
   const typeLabel = (value: string) =>
     ({ recharge: '充值', withdraw: '提现', refund: '退款' })[value] || value || '其他'
@@ -468,14 +409,17 @@
   const canCancel = (row: WalletOrderRow) =>
     ['recharge', 'refund'].includes(row.type) && row.status === 'pending_review'
 
-  const handleSearch = (params: Record<string, unknown>) => {
-    Object.assign(searchParams, params)
+  const applyFilters = () => {
+    searchParams.status = selectedStatus.value || undefined
+    searchParams.type = selectedType.value || undefined
     getData()
   }
   const openPayment = (payload: CompatibleRecord) => {
     const payment = (payload.payment ?? payload) as CompatibleRecord
     const url = String(payment.pay_url ?? payment.payURL ?? '')
-    if (url) window.open(url, '_blank')
+    if (!url) return false
+    window.open(url, '_blank')
+    return true
   }
   const fetchRechargeMethods = async () => {
     try {
@@ -496,19 +440,12 @@
   const fetchOverview = async () => {
     overviewLoading.value = true
     try {
-      const [walletResponse, transactionResponse] = await Promise.all([
-        getWallet(),
-        listWalletTransactions({ limit: 100, offset: 0 })
-      ])
+      const walletResponse = await getWallet()
       const normalized = normalizeWallet(walletResponse.data)
       wallet.value = {
         balance: Number(normalized.balance || 0),
-        currency: String(normalized.currency || 'CNY'),
-        updatedAt: String(normalized.updated_at || '')
+        currency: String(normalized.currency || 'CNY')
       }
-      transactions.value = (transactionResponse.data?.items ?? []).map((item) =>
-        normalizeTransaction(item as WalletTransaction & CompatibleRecord)
-      )
       await fetchRechargeMethods()
     } finally {
       overviewLoading.value = false
@@ -523,7 +460,8 @@
     rechargeDialogVisible.value = true
   }
   const resetRechargeForm = () => {
-    recharge.amount = 100
+    recharge.method = 'approval'
+    recharge.amount = null
     recharge.note = ''
     rechargeFormRef.value?.clearValidate()
   }
@@ -584,8 +522,11 @@
   const continuePay = async (row: WalletOrderRow) => {
     const method = String(row.meta.payment_method || '')
     const response = await payWalletOrder(row.id, { method })
-    openPayment(response.data as CompatibleRecord)
-    ElMessage.success('已拉起支付')
+    if (openPayment(response.data as CompatibleRecord)) {
+      ElMessage.success('已拉起支付')
+    } else {
+      ElMessage.warning('未获取到支付链接')
+    }
   }
   const cancelPendingOrder = async (row: WalletOrderRow) => {
     try {
@@ -684,8 +625,18 @@
     }
   }
 
-  .billing-tabs {
-    min-height: 540px;
+  .billing-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+
+    label {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+      color: var(--art-gray-700);
+    }
   }
 
   .billing-table-card {
@@ -722,10 +673,6 @@
     justify-content: flex-end;
   }
 
-  .transaction-card {
-    margin-top: 10px;
-  }
-
   .dialog-form {
     margin-top: 16px;
   }
@@ -734,9 +681,26 @@
     width: 100%;
   }
 
+  .available-balance {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 16px;
+    color: var(--art-gray-700);
+
+    strong {
+      color: var(--art-gray-900);
+    }
+  }
+
   @media (width <= 900px) {
     .stats-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .billing-filters,
+    .billing-filters label {
+      flex-direction: column;
+      align-items: stretch;
     }
   }
 

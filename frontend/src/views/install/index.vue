@@ -1,5 +1,19 @@
 <template>
-  <ArtException v-if="showNotFound" :data="notFoundData" />
+  <div v-if="showNotFound" class="not-found-page art-full-height">
+    <ThemeSvg :src="notFoundImage" class="not-found-image" />
+    <h1>404</h1>
+    <p>页面不存在</p>
+    <div class="not-found-actions">
+      <ElButton type="primary" @click="router.push('/')">
+        <ArtSvgIcon icon="ri:home-5-line" />
+        <span>返回首页</span>
+      </ElButton>
+      <ElButton @click="router.back()">
+        <ArtSvgIcon icon="ri:arrow-left-line" />
+        <span>返回上一页</span>
+      </ElButton>
+    </div>
+  </div>
 
   <div v-else class="install-page art-full-height">
     <AuthTopBar />
@@ -53,6 +67,7 @@
 
   defineOptions({ name: 'Install' })
 
+  const router = useRouter()
   const install = useInstallStore()
   const currentStep = ref(0)
   const showNotFound = ref(false)
@@ -67,13 +82,6 @@
     restart: false,
     configFile: ''
   })
-  const notFoundData = {
-    title: '404',
-    desc: '页面不存在',
-    btnText: '返回首页',
-    imgUrl: notFoundImage
-  }
-
   const handleDbNext = () => {
     currentStep.value = 1
   }
@@ -96,6 +104,43 @@
 </script>
 
 <style lang="scss" scoped>
+  .not-found-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 100vh;
+    padding: 40px 24px;
+    text-align: center;
+    background: var(--default-bg-color);
+  }
+
+  .not-found-image {
+    width: min(400px, 90vw);
+  }
+
+  .not-found-page h1 {
+    margin: 24px 0 8px;
+    font-size: 36px;
+    color: var(--art-gray-900);
+    letter-spacing: 0;
+  }
+
+  .not-found-page p {
+    margin: 0;
+    font-size: 16px;
+    color: var(--art-gray-600);
+  }
+
+  .not-found-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 28px;
+  }
+
   .install-page {
     position: relative;
     display: flex;
