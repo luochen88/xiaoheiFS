@@ -1,5 +1,5 @@
 <template>
-  <div class="auth-page art-full-height">
+  <div class="auth-page">
     <LoginLeftView />
 
     <main class="auth-main">
@@ -115,6 +115,7 @@
   .auth-page {
     display: flex;
     width: 100%;
+    height: 100vh;
     min-height: 100vh;
     background: var(--default-box-color);
   }

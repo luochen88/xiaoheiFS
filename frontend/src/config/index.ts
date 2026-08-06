@@ -38,7 +38,8 @@ import { headerBarConfig } from './modules/headerBar'
 const appConfig: SystemConfig = {
   // 系统信息
   systemInfo: {
-    name: 'Art Design Pro' // 系统名称
+    name: '小黑云' // 系统名称（侧边栏、顶栏、水印、登录页品牌都取这里；
+    // 站点显示名另有后端设置驱动的 stores/site.siteName，公开站用那个）
   },
   // 系统主题
   systemThemeStyles: {
