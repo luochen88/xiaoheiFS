@@ -462,6 +462,10 @@ export const updateAdminProfile = (payload: Record<string, unknown>) =>
 export const changeAdminPassword = (payload: { old_password: string; new_password: string }) =>
   http.post('/admin/api/v1/profile/change-password', payload)
 
+// 地区启用/禁用开关（不受 catalog_readonly 影响）—— 来自上游 danvei233/xiaoheiFS
+export const setRegionActive = (id: number | string, active: boolean) =>
+  http.patch<{ id: number; active: boolean }>(`/admin/api/v1/regions/${id}/active`, { active })
+
 // CMS
 export const listCmsCategories = (params?: Record<string, unknown>) =>
   http.get<ApiList<CMSCategory>>('/admin/api/v1/cms/categories', { params })

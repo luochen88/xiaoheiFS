@@ -84,9 +84,16 @@
                   }}</ElTag>
                 </template>
               </ElTableColumn>
-              <ElTableColumn label="操作" width="220" fixed="right">
+              <ElTableColumn label="操作" width="270" fixed="right">
                 <template #default="{ row }">
                   <div class="table-actions">
+                    <ElButton
+                      v-if="isOpenIDCPlugin(row as GoodsTypeRow)"
+                      link
+                      type="primary"
+                      @click="openGoodsTypeManage(row as GoodsTypeRow)"
+                      >管理</ElButton
+                    >
                     <ElButton
                       v-if="hasPermission('goods_type.update')"
                       link
@@ -159,11 +166,18 @@
               <ElTableColumn prop="id" label="ID" width="90" sortable />
               <ElTableColumn prop="name" label="名称" min-width="180" sortable />
               <ElTableColumn prop="code" label="代码" min-width="140" sortable />
-              <ElTableColumn label="状态" width="100">
+              <ElTableColumn label="状态" width="120">
                 <template #default="{ row }">
-                  <ElTag :type="row.active ? 'success' : 'danger'">{{
-                    row.active ? '启用' : '停用'
-                  }}</ElTag>
+                  <ElSwitch
+                    :model-value="Boolean(row.active)"
+                    :loading="Boolean(regionActiveBusy[row.id])"
+                    :disabled="!row.id || !hasPermission('region.set_active')"
+                    :width="54"
+                    inline-prompt
+                    active-text="启用"
+                    inactive-text="停用"
+                    @change="toggleRegionActive(row as RegionRow, $event)"
+                  />
                 </template>
               </ElTableColumn>
               <ElTableColumn label="操作" width="150" fixed="right">
@@ -255,25 +269,40 @@
                   }}</ElTag></template
                 >
               </ElTableColumn>
-              <ElTableColumn label="状态" width="100">
-                <template #default="{ row }"
-                  ><ElTag :type="row.active ? 'success' : 'danger'">{{
-                    row.active ? '启用' : '停用'
-                  }}</ElTag></template
-                >
+              <ElTableColumn label="状态" width="120">
+                <template #default="{ row }">
+                  <ElSwitch
+                    :model-value="Boolean(row.active)"
+                    :loading="Boolean(lineActiveBusy[row.id])"
+                    :disabled="!row.id || !hasPermission('plan_group.update')"
+                    :width="54"
+                    inline-prompt
+                    active-text="启用"
+                    inactive-text="停用"
+                    @change="toggleLineActiveSwitch(row as PlanGroupRow, $event)"
+                  />
+                </template>
               </ElTableColumn>
-              <ElTableColumn label="操作" width="220" fixed="right">
+              <ElTableColumn label="操作" width="320" fixed="right">
                 <template #default="{ row }">
                   <div class="table-actions">
                     <ElButton
-                      v-if="isCatalogReadonly && hasPermission('plan_group.update')"
+                      v-if="canOpenHostAgent"
                       link
-                      :type="row.active ? 'danger' : 'primary'"
-                      @click="togglePlanGroupActive(row as PlanGroupRow)"
+                      type="primary"
+                      @click="openLineVMs(row as PlanGroupRow)"
                     >
-                      {{ row.active ? '禁用' : '启用' }}
+                      管理虚拟机
                     </ElButton>
-                    <template v-else>
+                    <ElButton
+                      v-if="canOpenHostAgent"
+                      link
+                      type="primary"
+                      @click="openLineHost(row as PlanGroupRow)"
+                    >
+                      编辑主机
+                    </ElButton>
+                    <template v-if="!isCatalogReadonly">
                       <ElButton
                         v-if="hasPermission('plan_group.update')"
                         link
@@ -462,13 +491,30 @@
                   }}</ElTag></template
                 ></ElTableColumn
               >
-              <ElTableColumn label="状态" width="100"
-                ><template #default="{ row }"
-                  ><ElTag :type="row.enabled ? 'success' : 'danger'">{{
-                    row.enabled ? '启用' : '停用'
-                  }}</ElTag></template
-                ></ElTableColumn
-              >
+              <ElTableColumn label="线路" min-width="180">
+                <template #default="{ row }">
+                  <ElSpace v-if="row.line_names.length" wrap :size="6">
+                    <ElTag v-for="lineName in row.line_names" :key="lineName" type="primary">
+                      {{ lineName }}
+                    </ElTag>
+                  </ElSpace>
+                  <ElText v-else type="info">-</ElText>
+                </template>
+              </ElTableColumn>
+              <ElTableColumn label="状态" width="120">
+                <template #default="{ row }">
+                  <ElSwitch
+                    :model-value="Boolean(row.enabled)"
+                    :loading="Boolean(imageEnabledBusy[row.id])"
+                    :disabled="!row.id || !hasPermission('system_image.update')"
+                    :width="54"
+                    inline-prompt
+                    active-text="启用"
+                    inactive-text="停用"
+                    @change="toggleImageEnabled(row as SystemImageRow, $event)"
+                  />
+                </template>
+              </ElTableColumn>
               <ElTableColumn label="操作" width="150" fixed="right">
                 <template #default="{ row }">
                   <div class="table-actions">
@@ -654,6 +700,7 @@
     fetchAdminRegions,
     fetchAdminSystemImages,
     setAdminLineSystemImages,
+    setRegionActive,
     syncAdminGoodsTypeAutomation,
     syncAdminSystemImages,
     updateAdminBillingCycle,
@@ -663,11 +710,11 @@
     updateAdminPackage,
     updateAdminPlanGroup,
     updateAdminRegion,
-    updateAdminSystemImage
+    updateAdminSystemImage,
+    updateLine
   } from '@/services/admin'
   import { useAuth } from '@/hooks/core/useAuth'
   import { useTable } from '@/hooks/core/useTable'
-  import { ElMessage, ElMessageBox } from 'element-plus'
   import BillingCycleDialog from './modules/billing-cycle-dialog.vue'
   import GoodsTypeDialog from './modules/goods-type-dialog.vue'
   import PackageBatchDialog from './modules/package-batch-dialog.vue'
@@ -686,6 +733,7 @@
     sort_order: number
     automation_plugin_id: string
     automation_instance_id: string
+    plugin_base_url: string
   }
 
   interface RegionRow {
@@ -748,6 +796,7 @@
     name: string
     type: string
     enabled: boolean
+    line_names: string[]
   }
 
   interface BillingCycleRow {
@@ -907,6 +956,9 @@
   const billingCycles = ref<BillingCycleRow[]>([])
   const automationPlugins = ref<AdminPluginRecord[]>([])
   const imageCountByPlanGroup = ref(new Map<number, number>())
+  const regionActiveBusy = reactive<Record<number, boolean>>({})
+  const lineActiveBusy = reactive<Record<number, boolean>>({})
+  const imageEnabledBusy = reactive<Record<number, boolean>>({})
 
   const selectedRegionIds = ref<number[]>([])
   const selectedPlanGroupIds = ref<number[]>([])
@@ -1026,6 +1078,14 @@
     )
     return Boolean(plugin?.manifest?.capabilities?.automation?.catalog_readonly)
   })
+
+  const hostAgentBaseURL = computed(() =>
+    String(selectedGoodsType.value?.plugin_base_url || '')
+      .trim()
+      .replace(/\/+$/, '')
+  )
+
+  const canOpenHostAgent = computed(() => Boolean(hostAgentBaseURL.value))
 
   const displaySystemImages = computed(() =>
     imagePlanGroupFilter.value ? scopedSystemImages.value : systemImages.value
@@ -1186,7 +1246,8 @@
       automation_plugin_id: String(item?.automation_plugin_id ?? item?.AutomationPluginID ?? ''),
       automation_instance_id: String(
         item?.automation_instance_id ?? item?.AutomationInstanceID ?? ''
-      )
+      ),
+      plugin_base_url: String(item?.plugin_base_url ?? item?.PluginBaseURL ?? '').trim()
     }
   }
 
@@ -1255,12 +1316,16 @@
   }
 
   function normalizeSystemImage(item: any): SystemImageRow {
+    const lineNames = item?.line_names ?? item?.LineNames
     return {
       id: toNullableNumber(item?.id ?? item?.ID),
       image_id: toNullableNumber(item?.image_id ?? item?.ImageID),
       name: String(item?.name ?? item?.Name ?? ''),
       type: String(item?.type ?? item?.Type ?? 'linux').toLowerCase(),
-      enabled: toBoolean(item?.enabled ?? item?.Enabled, true)
+      enabled: toBoolean(item?.enabled ?? item?.Enabled, true),
+      line_names: Array.isArray(lineNames)
+        ? lineNames.map((lineName) => String(lineName || '').trim()).filter(Boolean)
+        : []
     }
   }
 
@@ -1312,6 +1377,19 @@
     if (type.includes('win')) return 'primary' as const
     if (type.includes('linux')) return 'success' as const
     return 'info' as const
+  }
+
+  function requestErrorMessage(error: unknown, fallback = '操作失败') {
+    if (error && typeof error === 'object') {
+      const responseError = (
+        error as { response?: { data?: { error?: unknown } }; message?: unknown }
+      ).response?.data?.error
+      if (typeof responseError === 'string' && responseError.trim()) return responseError
+
+      const message = (error as { message?: unknown }).message
+      if (typeof message === 'string' && message.trim()) return message
+    }
+    return fallback
   }
 
   function getRegionName(regionId?: number | null) {
@@ -1706,6 +1784,18 @@
     if (Number(goodsTypeId.value) === Number(row.id)) await refreshData()
   }
 
+  function isOpenIDCPlugin(row: GoodsTypeRow) {
+    return Boolean(row.plugin_base_url)
+  }
+
+  function openGoodsTypeManage(row: GoodsTypeRow) {
+    if (!row.plugin_base_url) {
+      ElMessage.warning('插件管理地址未配置')
+      return
+    }
+    window.open(row.plugin_base_url, '_blank', 'noopener')
+  }
+
   async function syncCurrentGoodsType() {
     if (!goodsTypeId.value) return ElMessage.error('请先选择商品类型')
     await syncAdminGoodsTypeAutomation(goodsTypeId.value, 'merge')
@@ -1735,6 +1825,22 @@
       await refreshData()
     } finally {
       regionSubmitting.value = false
+    }
+  }
+
+  async function toggleRegionActive(row: RegionRow, nextValue: string | number | boolean) {
+    const id = row.id
+    if (!id || regionActiveBusy[id]) return
+    const nextActive = Boolean(nextValue)
+    regionActiveBusy[id] = true
+    try {
+      await setRegionActive(id, nextActive)
+      row.active = nextActive
+      ElMessage.success(nextActive ? '已启用地区' : '已停用地区')
+    } catch (error) {
+      ElMessage.error(requestErrorMessage(error))
+    } finally {
+      delete regionActiveBusy[id]
     }
   }
 
@@ -1790,11 +1896,50 @@
     }
   }
 
-  async function togglePlanGroupActive(row: PlanGroupRow) {
-    if (!row.id) return
-    await updateAdminPlanGroup(row.id, { active: !row.active })
-    ElMessage.success(row.active ? '已禁用' : '已启用')
-    await refreshData()
+  async function toggleLineActiveSwitch(row: PlanGroupRow, nextValue: string | number | boolean) {
+    const id = row.id
+    if (!id || lineActiveBusy[id]) return
+    const nextActive = Boolean(nextValue)
+    lineActiveBusy[id] = true
+    try {
+      await updateLine(id, { active: nextActive })
+      row.active = nextActive
+      ElMessage.success(nextActive ? '已启用线路' : '已停用线路')
+    } catch (error) {
+      ElMessage.error(requestErrorMessage(error))
+    } finally {
+      delete lineActiveBusy[id]
+    }
+  }
+
+  function resolveHsNameFromLine(row: PlanGroupRow) {
+    return row.name.trim()
+  }
+
+  function openLineVMs(row: PlanGroupRow) {
+    const hostName = resolveHsNameFromLine(row)
+    if (!hostAgentBaseURL.value || !hostName) {
+      ElMessage.warning('HostAgent 管理地址未配置')
+      return
+    }
+    window.open(
+      `${hostAgentBaseURL.value}/hosts/${encodeURIComponent(hostName)}/vms`,
+      '_blank',
+      'noopener'
+    )
+  }
+
+  function openLineHost(row: PlanGroupRow) {
+    const hostName = resolveHsNameFromLine(row)
+    if (!hostAgentBaseURL.value || !hostName) {
+      ElMessage.warning('HostAgent 管理地址未配置')
+      return
+    }
+    window.open(
+      `${hostAgentBaseURL.value}/hosts/${encodeURIComponent(hostName)}`,
+      '_blank',
+      'noopener'
+    )
   }
 
   async function removePlanGroup(row: PlanGroupRow) {
@@ -2054,6 +2199,28 @@
       await refreshData()
     } finally {
       systemImageSubmitting.value = false
+    }
+  }
+
+  async function toggleImageEnabled(row: SystemImageRow, nextValue: string | number | boolean) {
+    const id = row.id
+    if (!id || imageEnabledBusy[id]) return
+    const nextEnabled = Boolean(nextValue)
+    imageEnabledBusy[id] = true
+    try {
+      await updateAdminSystemImage(id, { enabled: nextEnabled })
+      row.enabled = nextEnabled
+      systemImages.value.forEach((item) => {
+        if (item.id === id) item.enabled = nextEnabled
+      })
+      scopedSystemImages.value.forEach((item) => {
+        if (item.id === id) item.enabled = nextEnabled
+      })
+      ElMessage.success(nextEnabled ? '已启用镜像' : '已停用镜像')
+    } catch (error) {
+      ElMessage.error(requestErrorMessage(error))
+    } finally {
+      delete imageEnabledBusy[id]
     }
   }
 
