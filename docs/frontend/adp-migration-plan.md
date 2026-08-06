@@ -533,3 +533,38 @@ go test ./internal/ 仅剩 2 个既有失败（与本次无关）
 - 我写的第一版返修看门狗会自伤：`queue.sh` 等并发位期间该任务没有 tmux 会话，
   被误判成"已结束"而重复排队，两个实例同时启动时 `run.sh` 的 `kill-session`
   会杀掉正在干活的那个。G 因此被打断 3 次。判据必须同时确认"无会话"且"无排队进程"。
+
+
+---
+
+## 14. 真实后端端到端验证（2026-08-06）
+
+编译 Go 后端 + 真实前端产物 + SQLite 全新安装，跑通整条链路。安装时特意用了
+**自定义后台路径 `myadmin`**，以验证动态路径相关的改动。
+
+| 验证项 | 结果 |
+|---|---|
+| 安装门禁（不变量 #6） | `/`、`/products`、`/console/vps` → 302 `/install/`；`/install/` → 200；`/assets/*.js` → 200（必须放行，否则安装页自己加载不出来）；API → 503 |
+| 商品目录对游客开放（`OptionalUser`） | catalog / goods-types / plan-groups / packages / system-images / billing-cycles 全部 **200** |
+| 个人数据仍需鉴权 | me / cart / orders / vps / wallet / dashboard 全部 **401** |
+| 动态后台路径校验 | `check-admin-path`：`myadmin` → true；`admin` / `wp-admin` / `manage` → **false**。探测者拿不到真实路径 |
+| 服务层字段映射 | `services/adminPath.ts` 确实把 `is_admin` 映射成 `isAdmin`；否则守卫里的解构会全 `undefined`、所有后台路径 404 |
+| 管理员登录 | 带 `admin_path` 登录成功，返回 access_token |
+| 2FA 门禁（不变量 #2） | 全新管理员访问任何管理接口 → `403 {"code":"admin_2fa_bind_required"}`，与 `http.ts` 拦截器匹配的形状一致 |
+| 超管权限 | `handlers_admin_accounts.go:236` 确认主管理员权限为 `["*"]`，`hasAuth` 通配修复针对的是真实场景 |
+
+## 15. 唯一未闭合的缺口：暗色模式目视走查
+
+这台机器没有浏览器。Chromium 可以从 npmmirror 镜像下载，但缺 13 个系统运行时库
+（libnspr4 / libnss3 / libatk / libcups / libasound 等），装它们要动系统包，
+**已确认不做**。相关临时文件已清理。
+
+目前对暗色模式的保证全部是静态的：
+
+- 零硬编码颜色（邮件模板除外，见规范圣经 §16）
+- 前景/背景/边框成对使用语义变量
+- 构建产物里 144 处 `.dark` 覆盖
+- 「引用了但没定义」的 CSS 变量为 0
+
+**建议**：在有浏览器的机器上过一遍亮/暗两套，重点看长表格、抽屉、弹窗、空态、
+禁用态和低对比度文字。
